@@ -8,8 +8,11 @@
 #include <strings.h>
 #include <string.h>
 #include <sys/time.h>
+#include <signal.h>
 
 #include "shared.h"
+
+#define STDIN 0
 
 //Sends username in the form of length string
 void send_name(int s, char* user, int user_length){
@@ -49,12 +52,14 @@ int main(int argc, char* argv[])
 	void signal_handler(int sig){
 		fprintf(stderr, "Terminating...\n");
 		//Send termination message to server
-		char tempNum = 0x02;
-		send(s,&tempNum,1,0);
+		//Just realized we might not need this
+		//char tempNum = 0x02;
+		//send(s,&tempNum,1,0);
 		//tempNum = strlen(argv[3]);
 		//send(s,&tempNum,1,0);
-		send_name(s, argv[3], tempNum);
+		//send_name(s, argv[3], tempNum);
 		close(s);
+		//Close linked lists?
 		exit(0);
 	}
 	
@@ -68,7 +73,7 @@ int main(int argc, char* argv[])
 	//ntohl (number));
 	
 	recv (s, &number, sizeof (number), 0);
-	number = ntohl(number);
+	number = ntohs(number);
 	node* userStart = (node*)malloc(sizeof(node));
 	userStart->next = NULL;
 	//Check if there are other users in server
@@ -94,9 +99,9 @@ int main(int argc, char* argv[])
 	segv.sa_flags = 0;
 	sigaction(SIGINT,&segv,0);
 	
-	int alarm = 0;
+	int alarmBool = 0;
 	//Alarm signal handler function
-	void alarm_handler(int sig){ alarm = 1;}
+	void alarm_handler(int sig){ alarmBool = 1;}
 	alarm(9);
 	
 	//Set up alarm signal handler
@@ -110,26 +115,69 @@ int main(int argc, char* argv[])
 	struct timeval tv;
     fd_set readfds;
     fd_set writefds;
-    FD_ZERO(&readfds);
-    FD_ZERO(&writefds);
-    FD_SET(s, &readfds);
-    FD_SET(s, &writefds);
     
-    tv.tv_sec = 2;
     tv.tv_usec = 500000;
+    unsigned short tempLength;
+    char* messageBuffer = (char*)malloc(sizeof(char)*65535);
+    unsigned short charCount = 0;
+    char temp;
 	
 	while(1){
-		select(s+1,&readfds, &writefds, NULL, &tv);
-		if(FD_ISSET(s, &readfds){
+		tv.tv_sec = 2;
+		FD_ZERO(&readfds);
+		FD_ZERO(&writefds);
+		FD_SET(s, &readfds);
+		FD_SET(STDIN, &readfds);
+		FD_SET(s, &writefds);
+		
+		select(s+1,&readfds, &writefds, NULL, &tv); //Should test if alarm goes through block
+		//Is there a message received?
+		if(FD_ISSET(s, &readfds)){
+			recv(s,&temp,1,0);
+			if(temp==0){
+				
+			}else if(temp==0x01){
+				
+			}else if(temp==0x02){
+				
+			}else{
+				perror("Received unknown message.\n");
+				exit(1);
+			}
+		}
+		//If there's a message entered into STDIN, read it into messageBuffer
+		if(FD_ISSET(STDIN, &readfds)){
+			while(temp != 10){
+				recv(STDIN,&temp,1,0);
+				if(temp == 10){
+					break;
+				}
+				messageBuffer[charCount] = temp;
+				++charCount;
+			}
 			
 		}
+		//If socket is writeable... 
 		if(FD_ISSET(s, &writefds)){
-			
-			alarm = 0;
-			alarm(9);
+			if(charCount>0){
+				send(s,htons(charCount),2,0);
+				//send(s,messageBuffer,charCount,0);
+				int i;
+				for(i = 0; i<charCount; ++i){
+					send(s,messageBuffer[i],1,0);
+				}
+				charCount = 0;
+				alarm = 0;
+				alarm(9);
+			}
 		}
-		if(alarm){
-			//send idle message
+		//If no message has been sent in the past 9 seconds, send an idle message
+		if(alarmBool){
+			fprintf(stderr, "Sending idle message\n"); //Testing
+			tempLength = htons(0);
+			send(s,&tempLength,2,0);
+			alarmBool = 0;
+			alarm(9);
 		}
 	}
 	close (s);
