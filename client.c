@@ -199,11 +199,23 @@ int main(int argc, char* argv[])
 				messageBuffer[charCount] = temp;
 				++charCount;
 			}
-			
-		}
-		//If socket is writeable... 
-		if(FD_ISSET(s, &writefds)){
-			if(charCount>0){
+			//Now write it.
+			//Special case: It's a command, beginning with a /
+			if(messageBuffer[0]=='/'){
+				switch(messageBuffer){
+					case "/users":
+						printNames(nodeHead);
+						break;
+					case "/viewupdates":
+						//TO BE COMPLETED
+						break;
+					default:
+						printf("Command not found.\n");
+						break;
+				}
+				charCount = 0;
+			//Normal Case:
+			}else{
 				charCount = htons(charCount);
 				send(s,&charCount,2,0);
 				send(s, messageBuffer, ntohs(charCount), 0);
@@ -212,6 +224,17 @@ int main(int argc, char* argv[])
 				alarm(9);
 			}
 		}
+		//If socket is writeable... 
+		//~ if(FD_ISSET(s, &writefds)){
+			//~ if(charCount>0){
+				//~ charCount = htons(charCount);
+				//~ send(s,&charCount,2,0);
+				//~ send(s, messageBuffer, ntohs(charCount), 0);
+				//~ charCount = 0;
+				//~ alarmBool = 0;
+				//~ alarm(9);
+			//~ }
+		//~ }
 		//If no message has been sent in the past 9 seconds, send an idle message
 		if(alarmBool){
 			fprintf(stderr, "Sending idle message\n"); //Testing
