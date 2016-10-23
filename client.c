@@ -17,11 +17,8 @@
 //Sends username in the form of length string
 void send_name(int s, char* user, int user_length){
 	char temp = user_length;
-	send(s,&temp,1,0)
-	int i;
-	for(i = 0; i<user_length; ++i){
-		send(s,user[i],1,0);
-	}
+	send(s,&temp,1,0);
+	send(s,user,user_length,0);
 }
 
 int main(int argc, char* argv[])
@@ -74,8 +71,8 @@ int main(int argc, char* argv[])
 	
 	recv (s, &number, sizeof (number), 0);
 	number = ntohs(number);
-	node* userStart = (node*)malloc(sizeof(node));
-	userStart->next = NULL;
+	node* nodeHead = (node*)malloc(sizeof(node));
+	nodeHead->next = NULL;
 	//Check if there are other users in server
 	if(number != 0){
 		int i, stringLength;
@@ -84,13 +81,19 @@ int main(int argc, char* argv[])
 			recv(s,&stringLength,1,0);
 			string = (char*)malloc(stringLength+1);
 			recv(s,string,stringLength,0);
-			addName(userStart,string);
+			addName(nodeHead,string);
 		}
 	}
 	//Finally, send own username
 	send_name(s, argv[3], strlen(argv[3]));
 	//Handshake end
 	printNames(nodeHead);
+	
+	//Initialize some functions/signal handlers before entering select()
+	
+	//User log - used to report user-update messages (otherwise pointless)
+	FILE* userlog;
+	userlog = fopen("userlog.txt","w");
 	
 	//Set up signal handlers
 	struct sigaction segv;
@@ -115,12 +118,23 @@ int main(int argc, char* argv[])
 	struct timeval tv;
     fd_set readfds;
     fd_set writefds;
-    
     tv.tv_usec = 500000;
-    unsigned short tempLength;
+    
+    //Variables used in the while loop, most of them temporarily/reused
+    
     char* messageBuffer = (char*)malloc(sizeof(char)*65535);
+    if(messageBuffer == NULL){
+		perror ("Client: failed to allocate enough memory");
+		exit (1);
+	}
+	char* nameBuffer = (char*)malloc(sizeof(char)*255);
+    if(nameBuffer == NULL){
+		perror ("Client: failed to allocate enough memory");
+		exit (1);
+	}
     unsigned short charCount = 0;
     char temp;
+    int i;
 	
 	while(1){
 		tv.tv_sec = 2;
@@ -131,15 +145,40 @@ int main(int argc, char* argv[])
 		FD_SET(s, &writefds);
 		
 		select(s+1,&readfds, &writefds, NULL, &tv); //Should test if alarm goes through block
-		//Is there a message received?
+		//Was a message received?
 		if(FD_ISSET(s, &readfds)){
 			recv(s,&temp,1,0);
 			if(temp==0){
-				
-			}else if(temp==0x01){
-				
-			}else if(temp==0x02){
-				
+				//User message received
+				recv(s, &number, 1, 0);
+				recv(s, nameBuffer, number, 0);
+				printf("%s: ",nameBuffer);
+				recv(s, &number, 2, 0);
+				number = ntohs(number);
+				//Special case: Message of length 0, write to a userlog
+				if(number == 0){
+					number = strlen(nameBuffer);
+					for(i = 0; i<number; ++i){
+						fputc(nameBuffer[i],userlog);
+					}
+					number = 0;
+				}
+				//Normal case: Normal message
+				for(i = 0; i<number; ++i){
+					recv(s, &temp, 1, 0);
+					printf("%c",temp);
+				}
+				if (number!= 0) printf("\n");
+			}else if(temp==1){
+				//New user signal received
+				recv(s, &number, 1, 0);
+				recv(s, nameBuffer, number, 0);
+				addName(nodeHead,nameBuffer);
+			}else if(temp==2){
+				//User left signal received
+				recv(s, &number, 1, 0);
+				recv(s, nameBuffer, number, 0);
+				removeName(nodeHead,nameBuffer);
 			}else{
 				perror("Received unknown message.\n");
 				exit(1);
@@ -160,22 +199,19 @@ int main(int argc, char* argv[])
 		//If socket is writeable... 
 		if(FD_ISSET(s, &writefds)){
 			if(charCount>0){
-				send(s,htons(charCount),2,0);
-				//send(s,messageBuffer,charCount,0);
-				int i;
-				for(i = 0; i<charCount; ++i){
-					send(s,messageBuffer[i],1,0);
-				}
+				charCount = htons(charCount);
+				send(s,&charCount,2,0);
+				send(s, messageBuffer, ntohs(charCount), 0);
 				charCount = 0;
-				alarm = 0;
+				alarmBool = 0;
 				alarm(9);
 			}
 		}
 		//If no message has been sent in the past 9 seconds, send an idle message
 		if(alarmBool){
 			fprintf(stderr, "Sending idle message\n"); //Testing
-			tempLength = htons(0);
-			send(s,&tempLength,2,0);
+			number = htons(0);
+			send(s,&number,2,0);
 			alarmBool = 0;
 			alarm(9);
 		}
