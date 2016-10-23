@@ -10,35 +10,54 @@ void addName(node* nodeHead, char* name){
 		currentNode = currentNode->next;
 	}
 	currentNode->next = (node*)malloc(sizeof(node));
-	currentNode->next->name = name;
+	currentNode->name = name;
 	currentNode->next->next = NULL;
+	
 }
 
 //Finds and removes name from list
-//Preassumption: name is inside of list of nodes
-void removeName(node* nodeHead, char* name){
+//Preassumption: name is inside of list of nodes, each username is unique
+node* removeName(node* nodeHead, char* name){
 	//Special case: node is head
 	if(nodeHead->name == name){
-		node* nodeTemp = nodeHead;
-		nodeHead = nodeHead->next;
-		free(nodeTemp);
-		return;
+		node* tempNode = nodeHead;
+		return tempNode;
 	}
 	node* currentNode = nodeHead;
 	while((currentNode->next != NULL) && (currentNode->next->name != name)){
 		currentNode = currentNode->next;
 	}
+	//Actually returns node before found node for deletion purposes
 	node* tempNode = currentNode->next;
 	currentNode->next = currentNode->next->next;
-	free(tempNode);
+	return tempNode;
 }
 
 //Prints all names in list of nodes
 void printNames(node* nodeHead){
 	node* currentNode = nodeHead;
-	fprintf(stderr, "Users:\n");
-	while(currentNode!=NULL){
-		fprintf(stderr, "%s", currentNode->name);
+	printf("Users:\n");
+	while(currentNode->name!=NULL){
+		printf("%s\n", currentNode->name);
 		currentNode = currentNode->next;
+	}
+}
+
+//Deletes all nodes
+//Postcondition: nodeHead points to an unknown address
+//Sample code:
+/*
+deleteNode = removeName(headNode,"Gary");
+if (headNode->name == deleteNode->name){
+	headNode = headNode->next;
+}
+free(deleteNode);
+*/
+void deleteNodes(node* nodeHead){
+	node* currentNode = nodeHead;
+	while(nodeHead!=NULL){
+		currentNode = nodeHead;
+		nodeHead = nodeHead->next;
+		free(currentNode);
 	}
 }
