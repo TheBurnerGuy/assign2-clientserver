@@ -45,21 +45,6 @@ int main(int argc, char* argv[])
 	}
 	//Finished Connecting
 	
-	//Set up signal handler function
-	void signal_handler(int sig){
-		fprintf(stderr, "Terminating...\n");
-		//Send termination message to server
-		//Just realized we might not need this
-		//char tempNum = 0x02;
-		//send(s,&tempNum,1,0);
-		//tempNum = strlen(argv[3]);
-		//send(s,&tempNum,1,0);
-		//send_name(s, argv[3], tempNum);
-		close(s);
-		//Close linked lists?
-		exit(0);
-	}
-	
 	//Handshake begin
 	recv (s, &number, sizeof (number), 0);
 	if (number != 0xCFA7){
@@ -90,6 +75,21 @@ int main(int argc, char* argv[])
 	printNames(nodeHead);
 	
 	//Initialize some functions/signal handlers before entering select()
+	
+	//Set up signal handler function
+	void signal_handler(int sig){
+		close(s);
+		fprintf(stderr, "Terminating...\n");
+		//Send termination message to server
+		//Just realized we might not need this
+		//char tempNum = 0x02;
+		//send(s,&tempNum,1,0);
+		//tempNum = strlen(argv[3]);
+		//send(s,&tempNum,1,0);
+		//send_name(s, argv[3], tempNum);
+		deleteNodes(nodeHead);
+		exit(0);
+	}
 	
 	//User log - used to report user-update messages (otherwise pointless)
 	FILE* userlog;
@@ -135,6 +135,7 @@ int main(int argc, char* argv[])
     unsigned short charCount = 0;
     char temp;
     int i;
+    node* deleteNode;
 	
 	while(1){
 		tv.tv_sec = 2;
@@ -178,7 +179,11 @@ int main(int argc, char* argv[])
 				//User left signal received
 				recv(s, &number, 1, 0);
 				recv(s, nameBuffer, number, 0);
-				removeName(nodeHead,nameBuffer);
+				deleteNode = removeName(nodeHead,nameBuffer);
+				if (nodeHead->name == deleteNode->name){
+					nodeHead = nodeHead->next;
+				}
+				free(deleteNode);
 			}else{
 				perror("Received unknown message.\n");
 				exit(1);
