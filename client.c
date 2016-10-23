@@ -202,16 +202,20 @@ int main(int argc, char* argv[])
 			//Now write it.
 			//Special case: It's a command, beginning with a /
 			if(messageBuffer[0]=='/'){
-				switch(messageBuffer){
-					case "/users":
-						printNames(nodeHead);
-						break;
-					case "/viewupdates":
-						//TO BE COMPLETED
-						break;
-					default:
-						printf("Command not found.\n");
-						break;
+				if(charCount == 6){
+					//Complicated thing to find if strings are equal
+					for(i = 0; i< charCount; ++i){
+						if(messageBuffer[i]!="/users"[i]){
+							break;
+						}
+						if(i==6){
+							printNames(nodeHead);
+						}else{
+							printf("Command not found.\n");
+						}
+					}
+				}else{
+					printf("Command not found.\n");
 				}
 				charCount = 0;
 			//Normal Case:
