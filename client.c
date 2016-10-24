@@ -5,7 +5,6 @@
 #include <netdb.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <strings.h>
 #include <string.h>
 #include <sys/time.h>
 #include <signal.h>
@@ -122,12 +121,12 @@ int main(int argc, char* argv[])
     
     //Variables used in the while loop, most of them temporarily/reused
     
-    char* messageBuffer = (char*)malloc(sizeof(char)*65535);
+    char* messageBuffer = (char*)malloc(sizeof(char)*65536);
     if(messageBuffer == NULL){
 		perror ("Client: failed to allocate enough memory");
 		exit (1);
 	}
-	char* nameBuffer = (char*)malloc(sizeof(char)*255);
+	char* nameBuffer = (char*)malloc(sizeof(char)*256);
     if(nameBuffer == NULL){
 		perror ("Client: failed to allocate enough memory");
 		exit (1);
