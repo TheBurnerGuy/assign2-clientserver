@@ -43,16 +43,19 @@ void printNames(node* nodeHead){
 	}
 }
 
+//Counts nodes with names in them
+unsigned short nameCount(node* nodeHead){
+	node* currentNode = nodeHead;
+	unsigned short num = 0;
+	while(currentNode->next!=NULL){
+		 ++num;
+		 currentNode = currentNode->next;
+	 }
+	return num;
+}
+
 //Deletes all nodes
 //Postcondition: nodeHead points to an unknown address
-//Sample code:
-/*
-deleteNode = removeName(headNode,"Gary");
-if (headNode->name == deleteNode->name){
-	headNode = headNode->next;
-}
-free(deleteNode);
-*/
 void deleteNodes(node* nodeHead){
 	node* currentNode = nodeHead;
 	while(nodeHead!=NULL){
