@@ -12,7 +12,7 @@
 #include "shared.h"
 
 #define STDIN 0
-
+s
 //Sends username in the form of length string
 void send_name(int s, char* user, int user_length){
 	char temp = user_length;
@@ -27,7 +27,25 @@ int main(int argc, char* argv[])
 	int PORT = atoi(argv[2]);
 	struct	sockaddr_in	server;
 	unsigned long host = inet_addr (argv[1]); //0.0.0.0
-
+	
+	//Initializing variables not related to socket initialization
+	int i, stringLength;
+	node* nodeHead = (node*)malloc(sizeof(node));
+	nodeHead->next = NULL;
+	char temp;
+	char* messageBuffer = (char*)malloc(sizeof(char)*65536);
+    if(messageBuffer == NULL){
+		perror ("Client: failed to allocate enough memory");
+		exit (1);
+	}
+	char* nameBuffer = (char*)malloc(sizeof(char)*256);
+    if(nameBuffer == NULL){
+		perror ("Client: failed to allocate enough memory");
+		exit (1);
+	}
+    unsigned short charCount = 0;
+    node* deleteNode;
+	
 	//Start connecting
 	s = socket (AF_INET, SOCK_STREAM, 0);
 	if (s < 0) {
@@ -55,21 +73,18 @@ int main(int argc, char* argv[])
 	
 	recv (s, &number, sizeof (number), 0);
 	number = ntohs(number);
-	node* nodeHead = (node*)malloc(sizeof(node));
-	nodeHead->next = NULL;
 	//Check if there are other users in server
 	if(number != 0){
-		int i, stringLength;
-		char* string;
 		for(i = 0; i<number; ++i){
 			recv(s,&stringLength,1,0);
-			string = (char*)malloc(stringLength+1);
-			recv(s,string,stringLength,0);
-			addName(nodeHead,string);
+			recv(s,nameBuffer,stringLength,0);
+			addName(nodeHead,nameBuffer);
 		}
 	}
 	//Finally, send own username
-	send_name(s, argv[3], strlen(argv[3]));
+	temp = strlen(argv[3]);
+	send(s,&temp,1,0);
+	send(s,argv[3],user_length,0);
 	//Handshake end
 	printNames(nodeHead);
 	
@@ -104,7 +119,7 @@ int main(int argc, char* argv[])
 	int alarmBool = 0;
 	//Alarm signal handler function
 	void alarm_handler(int sig){ alarmBool = 1;}
-	alarm(9);
+	alarm(9); //Initialize alarm
 	
 	//Set up alarm signal handler
 	struct sigaction sega;
@@ -118,23 +133,6 @@ int main(int argc, char* argv[])
     fd_set readfds;
     fd_set writefds;
     tv.tv_usec = 500000;
-    
-    //Variables used in the while loop, most of them temporarily/reused
-    
-    char* messageBuffer = (char*)malloc(sizeof(char)*65536);
-    if(messageBuffer == NULL){
-		perror ("Client: failed to allocate enough memory");
-		exit (1);
-	}
-	char* nameBuffer = (char*)malloc(sizeof(char)*256);
-    if(nameBuffer == NULL){
-		perror ("Client: failed to allocate enough memory");
-		exit (1);
-	}
-    unsigned short charCount = 0;
-    char temp;
-    int i;
-    node* deleteNode;
 	
 	while(1){
 		tv.tv_sec = 2;
