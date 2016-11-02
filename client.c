@@ -15,14 +15,14 @@
 
 //Sends username in the form of length string
 void send_message(int s, void* address, int byte_length){
-	if(send(s, address, byte_length, 0) == -1){
+	if(send(s, address, byte_length, 0) <= 0){
 		perror("Client: failed to send message");
 		raise(SIGINT);
 	}
 }
 
 void receive_message(int s, void* address, int byte_length){
-	if(recv(s, address, byte_length, 0) == -1){
+	if(recv(s, address, byte_length, 0) <= 0){
 		perror("Client: failed to receive message");
 		raise(SIGINT);
 	}
@@ -187,7 +187,8 @@ int main(int argc, char* argv[])
 				perror("Received unknown message.\n");
 				exit(1);
 			}
-		}
+			continue; //Prioritise reading over sending message. Don't want send() to block while messages are waiting to be read.
+		}//End FD_ISSET readfds
 		//If there's a message entered into STDIN, read it into messageBuffer
 		if(FD_ISSET(STDIN, &readfds)){
 			charCount = 0;
@@ -222,7 +223,7 @@ int main(int argc, char* argv[])
 				alarmBool = 0;
 				alarm(9);
 			}
-		}
+		}//End FD_ISSET STDIN
 		//If no message has been sent in the past 9 seconds, send an idle message
 		if(alarmBool){
 			fprintf(stderr, "Sending idle message\n"); //Testing
