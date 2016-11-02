@@ -224,21 +224,25 @@ int main(int argc, char* argv[])
 									//Can probably reduce these 4 repetitions to a function--> will do later on
 									if (send_message(j, tempChar, 1) == 0) {
                                         perror("send");
+					continue;
 										//might try to terminate connection here? Will test later
                                     }
 									//Send username
 									if (send_message(j, nameBuffer, tempChar) == 0) {
                                         perror("send");
+					continue;
 										//might try to terminate connection here? Will test later
                                     }
 									//Send message length
 									if (send_message(j, tempNum, 2) == 0) {
                                         perror("send");
+					continue;
 										//might try to terminate connection here? Will test later
                                     }
 									//Send message
                                     if (send_message(j, messageBuffer, tempNum) == 0) {
                                         perror("send");
+					continue;
 										//might try to terminate connection here? Will test later
                                     }
                                 }
