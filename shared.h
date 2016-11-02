@@ -1,6 +1,7 @@
 typedef struct node_{
 	char* name;
 	struct node_* next;
+	int fd;
 }node;
 
 //Adds name to list
@@ -12,11 +13,25 @@ void addName(node* nodeHead, char* name){
 	currentNode->next = (node*)malloc(sizeof(node));
 	currentNode->name = name;
 	currentNode->next->next = NULL;
-	
+}
+
+void addNameServer(node* nodeHead, char* name, int fd){
+	node* currentNode = nodeHead;
+	while(currentNode->next != NULL){
+		currentNode = currentNode->next;
+	}
+	currentNode->next = (node*)malloc(sizeof(node));
+	currentNode->name = name;
+	currentNode->fd = fd;
+	currentNode->next->next = NULL;
 }
 
 //Finds and removes name from list
 //Preassumption: name is inside of list of nodes, each username is unique
+//Example:if (nodeHead->name == deleteNode->name){
+			//nodeHead = nodeHead->next;
+		//}
+		//free(deleteNode);
 node* removeName(node* nodeHead, char* name){
 	//Special case: node is head
 	if(nodeHead->name == name){
@@ -31,6 +46,34 @@ node* removeName(node* nodeHead, char* name){
 	node* tempNode = currentNode->next;
 	currentNode->next = currentNode->next->next;
 	return tempNode;
+}
+
+//Finds and removes fd from list
+//Preassumption: fd is inside of list of nodes, each fd is unique
+node* removeFd(node* nodeHead, int fd){
+	//Special case: node is head
+	if(nodeHead->fd == fd){
+		node* tempNode = nodeHead;
+		return tempNode;
+	}
+	node* currentNode = nodeHead;
+	while((currentNode->next != NULL) && (currentNode->next->fd != fd)){
+		currentNode = currentNode->next;
+	}
+	//Actually returns node before found node for deletion purposes
+	node* tempNode = currentNode->next;
+	currentNode->next = currentNode->next->next;
+	return tempNode;
+}
+
+//Finds fd
+//Preassumption: fd is inside of list of nodes, each fd is unique
+node* findFd(node* nodeHead, int fd){
+	node* currentNode = nodeHead;
+	while(currentNode->fd != fd){
+		currentNode = currentNode->next;
+	}
+	return currentNode;
 }
 
 //Prints all names in list of nodes
