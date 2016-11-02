@@ -12,12 +12,20 @@
 #include "shared.h"
 
 #define STDIN 0
-s
+
 //Sends username in the form of length string
-void send_name(int s, char* user, int user_length){
-	char temp = user_length;
-	send(s,&temp,1,0);
-	send(s,user,user_length,0);
+void send_message(int s, void* address, int byte_length){
+	if(send(s, address, byte_length, 0) == -1){
+		perror("Client: failed to send message");
+		raise(SIGINT);
+	}
+}
+
+void receive_message(int s, void* address, int byte_length){
+	if(recv(s, address, byte_length, 0) == -1){
+		perror("Client: failed to receive message");
+		raise(SIGINT);
+	}
 }
 
 int main(int argc, char* argv[])
@@ -46,6 +54,20 @@ int main(int argc, char* argv[])
     unsigned short charCount = 0;
     node* deleteNode;
 	
+	//Set up signal handler function - used to terminate if handshake/messaging fails
+	void signal_handler(int sig){
+		close(s);
+		fprintf(stderr, "Terminating...\n");
+		deleteNodes(nodeHead);
+		exit(0);
+	}
+	//Set up signal handlers
+	struct sigaction segv;
+	segv.sa_handler = signal_handler;
+	sigemptyset(&segv.sa_mask);
+	segv.sa_flags = 0;
+	sigaction(SIGINT,&segv,0);
+	
 	//Start connecting
 	s = socket (AF_INET, SOCK_STREAM, 0);
 	if (s < 0) {
@@ -63,7 +85,7 @@ int main(int argc, char* argv[])
 	//Finished Connecting
 	
 	//Handshake begin
-	recv (s, &number, sizeof (number), 0);
+	receive_message(s, &number, sizeof (number));
 	if (number != 0xCFA7){
 		perror ("Client: failed to connect to server");
 		exit (1);
@@ -71,50 +93,29 @@ int main(int argc, char* argv[])
 	//fprintf (stderr, "Process %d gets number %d\n", getpid (),
 	//ntohl (number));
 	
-	recv (s, &number, sizeof (number), 0);
+	receive_message(s, &number, sizeof (number));
 	number = ntohs(number);
 	//Check if there are other users in server
 	if(number != 0){
 		for(i = 0; i<number; ++i){
-			recv(s,&stringLength,1,0);
-			recv(s,nameBuffer,stringLength,0);
+			receive_message(s,&stringLength,1);
+			receive_message(s,nameBuffer,stringLength);
 			addName(nodeHead,nameBuffer);
 		}
 	}
 	//Finally, send own username
-	temp = strlen(argv[3]);
-	send(s,&temp,1,0);
-	send(s,argv[3],user_length,0);
+	number = strlen(argv[3]);
+	temp = number;
+	send_message(s,&temp,1);
+	send_message(s,argv[3],number);
 	//Handshake end
 	printNames(nodeHead);
 	
 	//Initialize some functions/signal handlers before entering select()
 	
-	//Set up signal handler function
-	void signal_handler(int sig){
-		close(s);
-		fprintf(stderr, "Terminating...\n");
-		//Send termination message to server
-		//Just realized we might not need this
-		//char tempNum = 0x02;
-		//send(s,&tempNum,1,0);
-		//tempNum = strlen(argv[3]);
-		//send(s,&tempNum,1,0);
-		//send_name(s, argv[3], tempNum);
-		deleteNodes(nodeHead);
-		exit(0);
-	}
-	
 	//User log - used to report user-update messages (otherwise pointless)
 	FILE* userlog;
 	userlog = fopen("userlog.txt","w");
-	
-	//Set up signal handlers
-	struct sigaction segv;
-	segv.sa_handler = signal_handler;
-	sigemptyset(&segv.sa_mask);
-	segv.sa_flags = 0;
-	sigaction(SIGINT,&segv,0);
 	
 	int alarmBool = 0;
 	//Alarm signal handler function
@@ -137,21 +138,22 @@ int main(int argc, char* argv[])
 	while(1){
 		tv.tv_sec = 2;
 		FD_ZERO(&readfds);
-		FD_ZERO(&writefds);
 		FD_SET(s, &readfds);
 		FD_SET(STDIN, &readfds);
-		FD_SET(s, &writefds);
 		
-		select(s+1,&readfds, &writefds, NULL, &tv); //Should test if alarm goes through block
+		if(select(s+1,&readfds, NULL, NULL, &tv) == -1){
+			perror("Client: Error while waiting for input/receiving output");
+			raise(SIGINT);
+		}
 		//Was a message received?
 		if(FD_ISSET(s, &readfds)){
-			recv(s,&temp,1,0);
+			receive_message(s,&temp,1);
 			if(temp==0){
-				//User message received
-				recv(s, &number, 1, 0);
-				recv(s, nameBuffer, number, 0);
+				//User message received -- might have error since unsigned short is supposed to be 2 bytes long?
+				receive_message(s, &temp, 1);
+				receive_message(s, nameBuffer, temp);
 				printf("%s: ",nameBuffer);
-				recv(s, &number, 2, 0);
+				receive_message(s, &number, 2);
 				number = ntohs(number);
 				//Special case: Message of length 0, write to a userlog
 				if(number == 0){
@@ -162,21 +164,21 @@ int main(int argc, char* argv[])
 					number = 0;
 				}
 				//Normal case: Normal message
-				for(i = 0; i<number; ++i){
-					recv(s, &temp, 1, 0);
-					printf("%c",temp);
+				else{ //number!= 0
+					receive_message(s, &messageBuffer,number);
+					printf("%s",messageBuffer);
+					printf("\n");
 				}
-				if (number!= 0) printf("\n");
 			}else if(temp==1){
 				//New user signal received
-				recv(s, &number, 1, 0);
-				recv(s, nameBuffer, number, 0);
+				receive_message(s, &number, 1);
+				receive_message(s, nameBuffer, number);
 				addName(nodeHead,nameBuffer);
 			}else if(temp==2){
 				//User left signal received
-				recv(s, &number, 1, 0);
-				recv(s, nameBuffer, number, 0);
-				deleteNode = removeName(nodeHead,nameBuffer);
+				receive_message(s, &number, 1);
+				receive_message(s, nameBuffer, number);
+				deleteNode = removeName(nodeHead,nameBuffer); //value returned to deleteNode is the node with the username found with removeName()
 				if (nodeHead->name == deleteNode->name){
 					nodeHead = nodeHead->next;
 				}
@@ -188,8 +190,9 @@ int main(int argc, char* argv[])
 		}
 		//If there's a message entered into STDIN, read it into messageBuffer
 		if(FD_ISSET(STDIN, &readfds)){
-			while(temp != 10){
-				recv(STDIN,&temp,1,0);
+			charCount = 0;
+			while(1){//waiting for temp == 10
+				receive_message(STDIN,&temp,1);
 				if(temp == 10){
 					break;
 				}
@@ -198,49 +201,33 @@ int main(int argc, char* argv[])
 			}
 			//Now write it.
 			//Special case: It's a command, beginning with a /
-			if(messageBuffer[0]=='/'){
-				if(charCount == 6){
-					//Complicated thing to find if strings are equal
-					for(i = 0; i< charCount; ++i){
-						if(messageBuffer[i]!="/users"[i]){
-							break;
-						}
-						if(i==6){
-							printNames(nodeHead);
-						}else{
-							printf("Command not found.\n");
-						}
-					}
-				}else{
-					printf("Command not found.\n");
+			if(messageBuffer[0]=='/' && charCount == 6){
+				//Slightly complex code to find if messageBuffer is equal to "/users"
+				for(i = 0; i< charCount; ++i){
+					if(messageBuffer[i]!="/users"[i]) break;
 				}
-				charCount = 0;
+				if(i==6){
+					printNames(nodeHead);
+				}
+				else{
+					printf("Command not found.");
+				}
+			}else if(messageBuffer[0]=='/'){
+				printf("Command not found.");
 			//Normal Case:
 			}else{
 				charCount = htons(charCount);
-				send(s,&charCount,2,0);
-				send(s, messageBuffer, ntohs(charCount), 0);
-				charCount = 0;
+				send_message(s,&charCount,2);
+				send_message(s, messageBuffer, ntohs(charCount));
 				alarmBool = 0;
 				alarm(9);
 			}
 		}
-		//If socket is writeable... 
-		//~ if(FD_ISSET(s, &writefds)){
-			//~ if(charCount>0){
-				//~ charCount = htons(charCount);
-				//~ send(s,&charCount,2,0);
-				//~ send(s, messageBuffer, ntohs(charCount), 0);
-				//~ charCount = 0;
-				//~ alarmBool = 0;
-				//~ alarm(9);
-			//~ }
-		//~ }
 		//If no message has been sent in the past 9 seconds, send an idle message
 		if(alarmBool){
 			fprintf(stderr, "Sending idle message\n"); //Testing
 			number = htons(0);
-			send(s,&number,2,0);
+			send_message(s,&number,2);
 			alarmBool = 0;
 			alarm(9);
 		}
