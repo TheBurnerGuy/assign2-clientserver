@@ -11,6 +11,7 @@
 
 #include "shared.h"
 
+//Server
 //Should be writing to log instead of STDERR
 int send_message(int s, void* address, int byte_length){
 	if(send(s, address, byte_length, 0) <= 0){
