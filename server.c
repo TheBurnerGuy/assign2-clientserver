@@ -11,12 +11,14 @@
 
 #include "shared.h"
 
-//Server
+//send_message()
+//sends message to specified socket while checking for errors
+//returns 0 if socket closed or error occurred, returns 1 if send was successful
 //Should be writing to log instead of STDERR
 int send_message(int s, void* address, int byte_length){
 	if(send(s, address, byte_length, 0) <= 0){
 		perror("Server: failed to send message");
-		return -1;
+		return 0;
 	}
 	return 1;
 }
@@ -24,7 +26,7 @@ int send_message(int s, void* address, int byte_length){
 int receive_message(int s, void* address, int byte_length){
 	if(recv(s, address, byte_length, 0) <= 0){
 		perror("Server: failed to receive message");
-		return -1;
+		return 0;
 	}
 	return 1;
 }
@@ -69,7 +71,7 @@ int main(int argc, char* argv[])
 	//Initializing stuff
 	int	sock, fromlength, snew, i, j, nbytes, bool;
 	unsigned short tempNum;
-	char tempChar;
+	unsigned char tempChar;
 	struct	sockaddr_in	master, from;
 	
 	//Set up example username list
@@ -152,7 +154,7 @@ int main(int argc, char* argv[])
 					snew = accept (sock, (struct sockaddr*) & from, & fromlength);
 					if (snew < 0) {
 						perror ("Server: accept failed");
-						exit (1);
+						//exit(1);
 					}else{
                         //printf("selectserver: new connection from %s:%d on socket %d\n", inet_ntoa(remoteaddr.sin_addr), ntohs(remoteaddr.sin_port), newfd);
                         //Initial handshake
@@ -168,7 +170,7 @@ int main(int argc, char* argv[])
 							currentNode = currentNode->next;
 						}
 						//If no error received from sending in socket...
-						if(bool != -1){
+						if(bool != 0){
 							receive_message(snew, &tempChar, 1);
 							tempNum = tempChar;
 							receive_message(snew, nameBuffer, tempNum);
@@ -184,10 +186,13 @@ int main(int argc, char* argv[])
                     }
                 } else {
                     // handle data from a client -- THIS PART ISNT DONE YET
-                    recv(i, buf, 2, 0);
-                    if ((nbytes = recv(i, buf, sizeof buf, 0)) <= 0) {
+					//Implementing this part without using fork for now, until can figure out a good fork implementation
+					//Personal notes:
+					//Advantages for using fork(): Doesn't have to search for socket's name using socket fd
+					//Disadvantages: Have to keep each child process separate... (definitely possible)
+                    if (receive_message(i, &tempNum, 2) <= 0) {
                         // got error or connection closed by client
-                        if (nbytes == 0) {
+                        if (tempNum == 0) {
                             // connection closed -- should write to a log instead of STDOUT here
                             printf("Server: socket %d hung up\n", i);
                         } else {
@@ -196,6 +201,8 @@ int main(int argc, char* argv[])
                         //close socket and remove from master file descriptor
                         close(i);
                         FD_CLR(i, &master_fds);
+						//if i was fdmax, use fdmax-1
+						if (fdmax == i) --fdmax;
                         //remove node from list of nodes
                         currentNode = removeFd(headNode,i);
                         if (nodeHead == currentNode){
@@ -203,14 +210,36 @@ int main(int argc, char* argv[])
 						}
 						free(currentNode);
                     } else {
-                        // we got some data from a client
+                        // we got data from a client
+						receive_message(i, messageBuffer, tempNum);
+						currentNode = findFd(headNode, i);
+						nameBuffer = currentNode->name;
+						tempChar = strlen(nameBuffer);
                         for(j = 0; j <= fdmax; j++) {
                             // send to everyone!
-                            if (FD_ISSET(j, &master)) {
+                            if (FD_ISSET(j, &master)) {//is this really needed?
                                 // except the listener and ourselves
                                 if (j != listener && j != i) {
-                                    if (send(j, buf, nbytes, 0) == -1) {
+									//Send username length
+									//Can probably reduce these 4 repetitions to a function--> will do later on
+									if (send_message(j, tempChar, 1) == 0) {
                                         perror("send");
+										//might try to terminate connection here? Will test later
+                                    }
+									//Send username
+									if (send_message(j, nameBuffer, tempChar) == 0) {
+                                        perror("send");
+										//might try to terminate connection here? Will test later
+                                    }
+									//Send message length
+									if (send_message(j, tempNum, 2) == 0) {
+                                        perror("send");
+										//might try to terminate connection here? Will test later
+                                    }
+									//Send message
+                                    if (send_message(j, messageBuffer, tempNum) == 0) {
+                                        perror("send");
+										//might try to terminate connection here? Will test later
                                     }
                                 }
                             }
