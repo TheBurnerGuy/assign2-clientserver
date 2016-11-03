@@ -182,10 +182,23 @@ int main(int argc, char* argv[])
 							if (snew > fdmax) {    // keep track of the max
 								fdmax = snew;
 							}
+							//Send user connected message
+							for(j = 0; j <= fdmax; j++) {
+								if (FD_ISSET(j, &master)) {//is this really needed?
+									// except the listener and ourselves
+									if (j != listener) {
+										//Send username length
+										send_message(j, tempNum, 1)
+										//Send username
+										send_message(j, nameBuffer, tempNum)
+										//Might want to test if send_message is successful or not here
+									}
+								}
+							}
 						}
                     }
                 } else {
-                    // handle data from a client -- THIS PART ISNT DONE YET
+                    // handle data from a client
 					//Implementing this part without using fork for now, until can figure out a good fork implementation
 					//Personal notes:
 					//Advantages for using fork(): Doesn't have to search for socket's name using socket fd
@@ -208,7 +221,23 @@ int main(int argc, char* argv[])
                         if (nodeHead == currentNode){
 							nodeHead = nodeHead->next;
 						}
+						nameBuffer = currentNode->name;
+						tempChar = strlen(nameBuffer);
 						free(currentNode);
+						//Send termination message to all sockets except self
+						for(j = 0; j <= fdmax; j++) {
+                            if (FD_ISSET(j, &master)) {//is this really needed?
+                                // except the listener and ourselves
+                                if (j != listener && j != i) {
+									//Send username length
+									if (send_message(j, tempChar, 1) == 0) continue;
+										//might try to terminate connection here? Will test later
+									//Send username
+									if (send_message(j, nameBuffer, tempChar) == 0) continue;
+										//might try to terminate connection here? Will test later
+                                }
+                            }
+                        }
                     } else {
                         // we got data from a client
 						receive_message(i, messageBuffer, tempNum);
@@ -221,36 +250,26 @@ int main(int argc, char* argv[])
                                 // except the listener and ourselves
                                 if (j != listener && j != i) {
 									//Send username length
-									//Can probably reduce these 4 repetitions to a function--> will do later on
-									if (send_message(j, tempChar, 1) == 0) {
-                                        perror("send");
-					continue;
+									if (send_message(j, tempChar, 1) == 0) continue;
 										//might try to terminate connection here? Will test later
-                                    }
 									//Send username
-									if (send_message(j, nameBuffer, tempChar) == 0) {
-                                        perror("send");
-					continue;
+									if (send_message(j, nameBuffer, tempChar) == 0) continue;
 										//might try to terminate connection here? Will test later
-                                    }
 									//Send message length
-									if (send_message(j, tempNum, 2) == 0) {
-                                        perror("send");
-					continue;
+									if (send_message(j, tempNum, 2) == 0) continue;
 										//might try to terminate connection here? Will test later
-                                    }
 									//Send message
-                                    if (send_message(j, messageBuffer, tempNum) == 0) {
-                                        perror("send");
-					continue;
+                                    if (send_message(j, messageBuffer, tempNum) == 0) continue;
 										//might try to terminate connection here? Will test later
-                                    }
                                 }
                             }
                         }
                     }
                 } // END handle data from client
             } // END got new incoming connection
+			if(){//need to implement time here
+				
+			}//END checking if process is idle
         } // END looping through file descriptors
     } // END while()
 	
