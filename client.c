@@ -86,7 +86,7 @@ int main(int argc, char* argv[])
 	
 	//Handshake begin
 	receive_message(s, &number, sizeof (number));
-	if (number != 0xCFA7){
+	if (number != htons(0xCFA7)){
 		perror ("Client: failed to connect to server");
 		exit (1);
 	}
