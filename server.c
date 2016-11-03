@@ -8,6 +8,7 @@
 #include <unistd.h>
 #include <signal.h>
 #include <string.h>
+#include <time.h>
 
 #include "shared.h"
 
@@ -70,15 +71,14 @@ int main(int argc, char* argv[])
 
 	//Initializing stuff
 	int	sock, fromlength, snew, i, j, nbytes, bool;
-	unsigned short tempNum;
-	unsigned char tempChar;
-	struct	sockaddr_in	master, from;
+	unsigned short tempNum, tempNum2;
+	unsigned char tempChar, tempChar2;
+	time_t currentTime = time(NULL);
 	
 	//Set up example username list
 	node* headNode = (node*)malloc(sizeof(node));
 	headNode->next = NULL;
 	node* currentNode;
-	
 	char* nameBuffer = (char*)malloc(256);
     if(nameBuffer == NULL){
 		perror ("Server: failed to allocate enough memory");
@@ -89,6 +89,8 @@ int main(int argc, char* argv[])
 		perror ("Client: failed to allocate enough memory");
 		exit (1);
 	}
+	
+	struct	sockaddr_in	master, from;
 	sock = socket (AF_INET, SOCK_STREAM, 0);
 	if (sock < 0) {
 		perror ("Server: cannot open master socket");
@@ -135,12 +137,17 @@ int main(int argc, char* argv[])
     FD_ZERO(&master_fds);
     FD_ZERO(&read_fds);
 	FD_SET(sock, &master_fds);
-	setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof optval);
+	setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
+	struct timeval tv;
+	tv.tv_usec = 500000;
 	
 	// main loop for original server.
     while(1){
+		tv.tv_sec = 2;
         read_fds = master_fds;
-        if (select(fdmax+1, &read_fds, NULL, NULL, NULL) == -1) {
+        time(&currentTime);//reset currentTime every loop
+        
+        if (select(fdmax+1, &read_fds, NULL, NULL, &tv) == -1) {
             perror("select");
             exit(-1);
         }
@@ -148,7 +155,7 @@ int main(int argc, char* argv[])
         // run through the existing connections looking for data to read
         for(i = 0; i <= fdmax; i++) {
             if (FD_ISSET(i, &read_fds)) { // we got one!!
-                if (i == listener) {
+                if (i == sock) {
                     // handle new connections
                     fromlength = sizeof (from);
 					snew = accept (sock, (struct sockaddr*) & from, & fromlength);
@@ -158,7 +165,7 @@ int main(int argc, char* argv[])
 					}else{
                         //printf("selectserver: new connection from %s:%d on socket %d\n", inet_ntoa(remoteaddr.sin_addr), ntohs(remoteaddr.sin_port), newfd);
                         //Initial handshake
-						tempNum = 0xCFA7;
+						tempNum = htons(0xCFA7);
 						bool = send_message (snew, &tempNum, 2); //Assumes send() will return -1 if socket is disconnected
 						tempNum = htons(nameCount(headNode));
 						bool = send_message (snew, &tempNum, 2);
@@ -169,28 +176,33 @@ int main(int argc, char* argv[])
 							bool = send_message(snew, currentNode->name, tempChar);
 							currentNode = currentNode->next;
 						}
-						//If no error received from sending in socket...
+						//If no error received from sending in socket... (should probably check if receive is successful anyway)
 						if(bool != 0){
-							receive_message(snew, &tempChar, 1);
-							tempNum = tempChar;
-							receive_message(snew, nameBuffer, tempNum);
+							if(receive_message(snew, &tempChar, 1) == 0 || receive_message(snew, nameBuffer, tempChar)== 0){
+								perror("error from receive handshake");
+								close(snew);
+								continue;
+							}
 							//End handshake
 							//Now add it to the server's data structures
-							addNameServer(headNode,nameBuffer,snew);
+							addNameServer(headNode,nameBuffer,snew,currentTime);
 							printNames(headNode); //just a test ;)
 							FD_SET(snew, &master_fds); // add to master set
 							if (snew > fdmax) {    // keep track of the max
 								fdmax = snew;
 							}
 							//Send user connected message
+							tempChar2 = 1;
 							for(j = 0; j <= fdmax; j++) {
-								if (FD_ISSET(j, &master)) {//is this really needed?
+								if (FD_ISSET(j, &master_fds)) {//is this really needed?
 									// except the listener and ourselves
-									if (j != listener) {
+									if (j != sock) {
+										//Send 0x01
+										if(send_message(j, &tempChar2, 1) == 0) continue;
 										//Send username length
-										send_message(j, tempNum, 1)
+										if(send_message(j, &tempChar, 1) == 0) continue;
 										//Send username
-										send_message(j, nameBuffer, tempNum)
+										if(send_message(j, nameBuffer, tempChar) == 0) continue;
 										//Might want to test if send_message is successful or not here
 									}
 								}
@@ -205,12 +217,8 @@ int main(int argc, char* argv[])
 					//Disadvantages: Have to keep each child process separate... (definitely possible)
                     if (receive_message(i, &tempNum, 2) <= 0) {
                         // got error or connection closed by client
-                        if (tempNum == 0) {
-                            // connection closed -- should write to a log instead of STDOUT here
-                            printf("Server: socket %d hung up\n", i);
-                        } else {
-                            perror("Server: Error reading from socket");
-                        }
+                        // connection closed -- should write to a log instead of STDOUT here
+                        printf("Server: socket %d hung up\n", i);
                         //close socket and remove from master file descriptor
                         close(i);
                         FD_CLR(i, &master_fds);
@@ -218,57 +226,117 @@ int main(int argc, char* argv[])
 						if (fdmax == i) --fdmax;
                         //remove node from list of nodes
                         currentNode = removeFd(headNode,i);
-                        if (nodeHead == currentNode){
-							nodeHead = nodeHead->next;
+                        if (headNode == currentNode){
+							headNode = headNode->next;
 						}
 						nameBuffer = currentNode->name;
 						tempChar = strlen(nameBuffer);
 						free(currentNode);
 						//Send termination message to all sockets except self
+						tempChar2 = 2;
 						for(j = 0; j <= fdmax; j++) {
-                            if (FD_ISSET(j, &master)) {//is this really needed?
+                            if (FD_ISSET(j, &master_fds)) {//is this really needed?
                                 // except the listener and ourselves
-                                if (j != listener && j != i) {
+                                if (j != sock && j != i) {
+									//Send 0x02
+									if (send_message(j, &tempChar2, 1) == 0) continue;
 									//Send username length
-									if (send_message(j, tempChar, 1) == 0) continue;
-										//might try to terminate connection here? Will test later
+									if (send_message(j, &tempChar, 1) == 0) continue;
+									//might try to terminate connection here? Will test later
 									//Send username
 									if (send_message(j, nameBuffer, tempChar) == 0) continue;
-										//might try to terminate connection here? Will test later
+									//might try to terminate connection here? Will test later
                                 }
                             }
                         }
                     } else {
-                        // we got data from a client
-						receive_message(i, messageBuffer, tempNum);
-						currentNode = findFd(headNode, i);
+                        // received data from a client
+                        tempNum2 = ntohs(tempNum);
+                        currentNode = findFd(headNode, i);
 						nameBuffer = currentNode->name;
+						currentNode->idleTime = currentTime; //update user's last sent msg time
 						tempChar = strlen(nameBuffer);
-                        for(j = 0; j <= fdmax; j++) {
-                            // send to everyone!
-                            if (FD_ISSET(j, &master)) {//is this really needed?
-                                // except the listener and ourselves
-                                if (j != listener && j != i) {
-									//Send username length
-									if (send_message(j, tempChar, 1) == 0) continue;
+                        //Special case: Idle message
+                        if(tempNum == 0){
+							// send to everyone!
+							for(j = 0; j <= fdmax; j++) {
+								if (FD_ISSET(j, &master_fds)) {//is this really needed?
+									// except the listener and ourselves
+									if (j != sock && j != i) {
+										//Send 0x00
+										if (send_message(j, &tempNum, 1) == 0) continue;
+										//Send username length
+										if (send_message(j, &tempChar, 1) == 0) continue;
 										//might try to terminate connection here? Will test later
-									//Send username
-									if (send_message(j, nameBuffer, tempChar) == 0) continue;
+										//Send username
+										if (send_message(j, nameBuffer, tempChar) == 0) continue;
 										//might try to terminate connection here? Will test later
-									//Send message length
-									if (send_message(j, tempNum, 2) == 0) continue;
+									}
+								}
+							}
+						}//Normal case: Non-idle message
+                        else{
+							receive_message(i, messageBuffer, tempNum2);
+							for(j = 0; j <= fdmax; j++) {
+								// send to everyone!
+								if (FD_ISSET(j, &master_fds)) {//is this really needed?
+									// except the listener and ourselves
+									if (j != sock && j != i) {
+										//Send username length
+										if (send_message(j, &tempChar, 1) == 0) continue;
 										//might try to terminate connection here? Will test later
-									//Send message
-                                    if (send_message(j, messageBuffer, tempNum) == 0) continue;
+										//Send username
+										if (send_message(j, nameBuffer, tempChar) == 0) continue;
 										//might try to terminate connection here? Will test later
-                                }
+										//Send message length
+										if (send_message(j, &tempNum, 2) == 0) continue;
+										//might try to terminate connection here? Will test later
+										//Send message
+										if (send_message(j, messageBuffer, tempNum2) == 0) continue;
+										//might try to terminate connection here? Will test later
+									}
+								}
+							}
+						}
+                    } //END received data from client
+                } // END handle data from client
+            } // END got new incoming connection
+            //Check if any connections have been idled for more than 30
+			currentNode = headNode;
+			while(currentNode->next!=NULL){
+				if(currentTime - currentNode->idleTime >= 30){
+					//Close socket, and send termination message to all sockets
+                    FD_CLR(currentNode->fd, &master_fds);
+					//if i was fdmax, use fdmax-1
+					if (fdmax == currentNode->fd) --fdmax;
+					nameBuffer = currentNode->name;
+					tempChar = strlen(nameBuffer);
+					//Send termination message to all sockets except self
+					tempChar2 = 2;
+					for(j = 0; j <= fdmax; j++) {
+                        if (FD_ISSET(j, &master_fds)) {//is this really needed?
+                            // except the listener and ourselves
+                            if (j != sock && j != i) {
+							//Send 0x02
+							if (send_message(j, &tempChar2, 1) == 0) continue;
+							//Send username length
+							if (send_message(j, &tempChar, 1) == 0) continue;
+							//might try to terminate connection here? Will test later
+							//Send username
+							if (send_message(j, nameBuffer, tempChar) == 0) continue;
+							//might try to terminate connection here? Will test later
                             }
                         }
                     }
-                } // END handle data from client
-            } // END got new incoming connection
-			if(){//need to implement time here
-				
+                    //remove node from list of nodes
+                    currentNode = removeFd(headNode,currentNode->fd);
+                    if (headNode == currentNode){
+						headNode = headNode->next;
+					}
+                    close(currentNode->fd);
+                    free(currentNode);
+				}
+				currentNode = currentNode->next;
 			}//END checking if process is idle
         } // END looping through file descriptors
     } // END while()
