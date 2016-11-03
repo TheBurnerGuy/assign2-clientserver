@@ -232,6 +232,5 @@ int main(int argc, char* argv[])
 			alarmBool = 0;
 			alarm(9);
 		}
-	}
-	close (s);
-}
+	}//END while loop
+}//END main()
