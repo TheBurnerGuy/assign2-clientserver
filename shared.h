@@ -2,6 +2,7 @@ typedef struct node_{
 	char* name;
 	struct node_* next;
 	int fd;
+	time_t idleTime;
 }node;
 
 //Adds name to list
@@ -15,7 +16,7 @@ void addName(node* nodeHead, char* name){
 	currentNode->next->next = NULL;
 }
 
-void addNameServer(node* nodeHead, char* name, int fd){
+void addNameServer(node* nodeHead, char* name, int fd, time_t idleTime){
 	node* currentNode = nodeHead;
 	while(currentNode->next != NULL){
 		currentNode = currentNode->next;
@@ -23,6 +24,7 @@ void addNameServer(node* nodeHead, char* name, int fd){
 	currentNode->next = (node*)malloc(sizeof(node));
 	currentNode->name = name;
 	currentNode->fd = fd;
+	currentNode->idleTime = idleTime;
 	currentNode->next->next = NULL;
 }
 
