@@ -233,6 +233,6 @@ int main(int argc, char* argv[])
 			alarm(9);
 		}
 	}
-	close (s);
+	return 0;
 }
-0
+
