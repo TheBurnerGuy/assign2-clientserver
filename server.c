@@ -70,16 +70,12 @@ int main(int argc, char* argv[])
     }
     umask(0);
     // open a log file
-    //sprintf(fileName,"cmput379%d.log",pid);
-    char pidstring[5];
-	sprintf (pidstring, "%d", getpid());
-	char filename[20];
-	strcpy(filename, "server379");
-	strcat(filename, pidstring);
-	strcat(filename,".log");
+             
+	sprintf (fileName, "server379%d.log", getpid());
+
     
     FILE* fp;
-    fp = fopen (filename, "w+");
+    fp = fopen (fileName, "w+");
     if(!fp){
     	printf("cannot open log file");
     }
