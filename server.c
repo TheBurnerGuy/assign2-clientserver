@@ -21,7 +21,6 @@ int send_message(int s, void* address, int byte_length){
 		perror("Server: failed to send message");
 		return 0;
 	}
-	debug_message(1, address, byte_length);
 	return 1;
 }
 
@@ -30,13 +29,12 @@ int receive_message(int s, void* address, int byte_length){
 		perror("Server: failed to receive message");
 		return 0;
 	}
-	debug_message(0, address, byte_length);
 	return 1;
 }
 
-
 int main(int argc, char* argv[])
 {	
+	
 	//Daemon stuff should go here? ctrl+e reminder
 	//~ pid_t pid = 0;
     //~ pid_t sid = 0;
@@ -99,7 +97,7 @@ int main(int argc, char* argv[])
 		perror ("Server: cannot open master socket");
 		exit (1);
 	}
-	memset(&master, 0, sizeof master);
+	memset(&master, 0, sizeof (master));
 	master.sin_family = AF_INET;
 	master.sin_addr.s_addr = inet_addr("127.0.0.1");//replaced INADDR_ANY
 	master.sin_port = htons (atoi(argv[1]));
@@ -124,6 +122,7 @@ int main(int argc, char* argv[])
 			close(currentNode->fd);
 			currentNode = currentNode->next;
 		}
+		deleteNodes(headNode);
 		exit(0);
 	}
 	struct sigaction segv;
@@ -143,6 +142,8 @@ int main(int argc, char* argv[])
 	setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
 	struct timeval tv;
 	tv.tv_usec = 500000;
+	
+	printf("Start\n");
 	
 	// main loop for original server.
     while(1){
@@ -168,8 +169,10 @@ int main(int argc, char* argv[])
 					}else{
                         //printf("selectserver: new connection from %s:%d on socket %d\n", inet_ntoa(remoteaddr.sin_addr), ntohs(remoteaddr.sin_port), newfd);
                         //Initial handshake
-						tempNum = htons(0xCFA7);
-						bool = send_message (snew, &tempNum, 2); //Assumes send() will return -1 if socket is disconnected
+						tempChar = 0xCF;
+						tempChar2 = 0xA7;
+						bool = send_message (snew, &tempChar, 1); //Assumes send() will return -1 if socket is disconnected
+						bool = send_message (snew, &tempChar2, 1);
 						tempNum = htons(nameCount(headNode));
 						bool = send_message (snew, &tempNum, 2);
 						currentNode = headNode;
@@ -199,7 +202,7 @@ int main(int argc, char* argv[])
 							for(j = 0; j <= fdmax; j++) {
 								if (FD_ISSET(j, &master_fds)) {//is this really needed?
 									// except the listener and ourselves
-									if (j != sock) {
+									if (j != sock && j != snew) {
 										//Send 0x01
 										if(send_message(j, &tempChar2, 1) == 0) continue;
 										//Send username length
@@ -274,6 +277,8 @@ int main(int argc, char* argv[])
 										//Send username
 										if (send_message(j, nameBuffer, tempChar) == 0) continue;
 										//might try to terminate connection here? Will test later
+										//Send message length = 0
+										if (send_message(j, &tempNum, 2) == 0) continue;
 									}
 								}
 							}
@@ -285,6 +290,8 @@ int main(int argc, char* argv[])
 								if (FD_ISSET(j, &master_fds)) {//is this really needed?
 									// except the listener and ourselves
 									if (j != sock && j != i) {
+										//Send 0x00
+										if (send_message(j, &tempNum, 1) == 0) continue;
 										//Send username length
 										if (send_message(j, &tempChar, 1) == 0) continue;
 										//might try to terminate connection here? Will test later
