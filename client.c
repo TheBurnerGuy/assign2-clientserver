@@ -9,11 +9,71 @@
 #include <sys/time.h>
 #include <signal.h>
 
-#include "shared.h"
-
 #define STDIN 0
 
-//Sends username in the form of length string
+typedef struct node_{
+	char* name;
+	struct node_* next;
+}node;
+
+//Adds name to list -- client only
+void addName(node* nodeHead, char* name, int nameSize){
+	node* currentNode = nodeHead;
+	while(currentNode->next != NULL){
+		currentNode = currentNode->next;
+	}
+	currentNode->next = (node*)malloc(sizeof(node));
+	currentNode->name = (char*)calloc(1,sizeof(char)*nameSize+1);
+	strncpy(currentNode->name,name,nameSize);
+	currentNode->next->next = NULL;
+}
+
+//Finds and removes name from list
+//Preassumption: name is inside of list of nodes, each username is unique
+//Example:if (nodeHead->name == deleteNode->name){
+		//nodeHead = nodeHead->next;
+		//}
+		//free(deleteNode);
+node* removeName(node* nodeHead, char* name){
+	//Special case: node is head
+	int n = strlen(name);
+	if(strncmp(nodeHead->name,name,n)==0){
+		return nodeHead;
+	}
+	node* currentNode = nodeHead;
+	while((currentNode->next != NULL) && (strncmp(currentNode->next->name,name,n)!=0)){
+		currentNode = currentNode->next;
+	}
+	//Actually returns node before found node for deletion purposes
+	node* tempNode = currentNode->next;
+	currentNode->next = currentNode->next->next;
+	return tempNode;
+}
+
+//Prints all names in list of nodes to STDOUT
+void printNames(node* nodeHead){
+	node* currentNode = nodeHead;
+	printf("Users:");
+	while(currentNode->next!=NULL){
+		printf(" %s,", currentNode->name);
+		currentNode = currentNode->next;
+	}
+	printf("\n");
+}
+
+
+//Deletes all nodes
+//Postcondition: nodeHead points to an unknown address
+void deleteNodes(node* nodeHead){
+	node* currentNode = nodeHead;
+	while(nodeHead!=NULL){
+		currentNode = nodeHead;
+		nodeHead = nodeHead->next;
+		free(currentNode);
+	}
+}
+
+//Sends message in the form of length string
 void send_message(int s, void* address, int byte_length){
 	if(send(s, address, byte_length, 0) <= 0){
 		perror("Client: failed to send message/disconnected by server\n");
