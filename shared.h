@@ -22,6 +22,7 @@ void addNameServer(node* nodeHead, char* name, int fd, time_t idleTime){
 		currentNode = currentNode->next;
 	}
 	currentNode->next = (node*)malloc(sizeof(node));
+	if (currentNode->next == NULL) raise(SIGINT);
 	currentNode->name = name;
 	currentNode->fd = fd;
 	currentNode->idleTime = idleTime;
@@ -81,11 +82,12 @@ node* findFd(node* nodeHead, int fd){
 //Prints all names in list of nodes
 void printNames(node* nodeHead){
 	node* currentNode = nodeHead;
-	printf("Users:\n");
-	while(currentNode->name!=NULL){
-		printf("%s\n", currentNode->name);
+	printf("Users:");
+	while(currentNode->next!=NULL){
+		printf(" %s,", currentNode->name);
 		currentNode = currentNode->next;
 	}
+	printf("\n");
 }
 
 //Counts nodes with names in them
@@ -108,17 +110,4 @@ void deleteNodes(node* nodeHead){
 		nodeHead = nodeHead->next;
 		free(currentNode);
 	}
-}
-
-void debug_message(int flag, void *address, int byte_length){
-	if (flag==0) {
-		printf("Recieved message:");
-	} else {
-		printf("Sent message:");
-	}
-	int i=0;
-	for (i=0; i<byte_length; i++){
-		printf("%c", *((char*)address+i));
-	}
-	printf("\n");
 }
