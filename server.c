@@ -11,14 +11,93 @@
 #include <string.h>
 #include <time.h>
 
-#include "shared.h"
-
 //node for server -- bigger than client
+typedef struct node_{
+	char* name;
+	struct node_* next;
+	int fd;
+	time_t idleTime;
+}node;
+
+//Adds name, file descriptor, and idling time to list -- server only
+void addNameServer(node* nodeHead, char* name, int nameSize, int fd, time_t idleTime){
+	node* currentNode = nodeHead;
+	while(currentNode->next != NULL){
+		currentNode = currentNode->next;
+	}
+	currentNode->next = (node*)malloc(sizeof(node));
+	 if (currentNode->next == NULL) raise(SIGINT);
+	//~ currentNode->name = strndup(name,nameSize);
+	currentNode->name = (char*)calloc(1,sizeof(char)*nameSize+1);
+	strncpy(currentNode->name,name,nameSize);
+	currentNode->fd = fd;
+	currentNode->idleTime = idleTime;
+	currentNode->next->next = NULL;
+}
+
+//Finds and removes fd from list
+//Preassumption: fd is inside of list of nodes, each fd is unique
+node* removeFd(node* nodeHead, int fd){
+	//Special case: node is head
+	if(nodeHead->fd == fd){
+		return nodeHead;
+	}
+	node* currentNode = nodeHead;
+	while((currentNode->next != NULL) && (currentNode->next->fd != fd)){
+		currentNode = currentNode->next;
+	}
+	//Actually returns node before found node for deletion purposes
+	node* tempNode = currentNode->next;
+	currentNode->next = currentNode->next->next;
+	return tempNode;
+}
+
+//Finds fd
+//Preassumption: fd is inside of list of nodes, each fd is unique
+node* findFd(node* nodeHead, int fd){
+	node* currentNode = nodeHead;
+	while(currentNode->fd != fd){
+		currentNode = currentNode->next;
+	}
+	return currentNode;
+}
+
+//finds if name is inside list of nodes
+int findName(node* nodeHead, char* name){
+	node* currentNode = nodeHead;
+	int length = strlen(name);
+	while(currentNode->next != NULL && strncmp(currentNode->name,name,length)!=0){
+		currentNode = currentNode->next;
+	}
+	return currentNode->next != NULL;
+}
+
+//Counts nodes with names in them
+unsigned short nameCount(node* nodeHead){
+	node* currentNode = nodeHead;
+	unsigned short num = 0;
+	while(currentNode->next!=NULL){
+		 ++num;
+		 currentNode = currentNode->next;
+	 }
+	return num;
+}
+
+//Deletes all nodes
+//Postcondition: nodeHead points to an unknown address
+void deleteNodes(node* nodeHead){
+	node* currentNode = nodeHead;
+	while(nodeHead!=NULL){
+		currentNode = nodeHead;
+		nodeHead = nodeHead->next;
+		free(currentNode);
+	}
+}
+
 
 //send_message()
 //sends message to specified socket while checking for errors
 //returns 0 if socket closed or error occurred, returns 1 if send was successful
-//Should be writing to log instead of STDERR
 int send_message(int s, void* address, int byte_length){
 	if(send(s, address, byte_length, 0) <= 0){
 		return 0;
@@ -26,6 +105,7 @@ int send_message(int s, void* address, int byte_length){
 	return 1;
 }
 
+//like send_message, but for receive
 int receive_message(int s, void* address, int byte_length){
 	if(recv(s, address, byte_length, 0) <= 0){
 		return 0;
@@ -40,7 +120,7 @@ int main(int argc, char* argv[])
 		exit (1);
 	}
 	
-	//Daemon stuff should go here? ctrl+e reminder
+	//Daemon initialization
 	pid_t pid = 0;
     pid_t sid = 0;
     pid = fork();
