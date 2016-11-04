@@ -48,6 +48,7 @@ int main(int argc, char* argv[])
         //perror("fork failed!\n");
         exit(1);
     }
+
     if (pid > 0){
 		//parent process waits until receives SIGINT, then kills child
 		void psignal_handler(int sig){
@@ -69,9 +70,16 @@ int main(int argc, char* argv[])
     }
     umask(0);
     // open a log file
-    sprintf(fileName,"cmput379%d.log",pid);
+    //sprintf(fileName,"cmput379%d.log",pid);
+    char pidstring[5];
+	sprintf (pidstring, "%d", getpid());
+	char filename[20];
+	strcpy(filename, "server379");
+	strcat(filename, pidstring);
+	strcat(filename,".log");
+    
     FILE* fp;
-    fp = fopen (fileName, "w+");
+    fp = fopen (filename, "w+");
     if(!fp){
     	printf("cannot open log file");
     }
