@@ -78,7 +78,7 @@ int main(int argc, char* argv[])
 	server.sin_addr.s_addr = host;
 	server.sin_family = AF_INET;
 	server.sin_port = htons (PORT);
-	if (connect (s, (struct sockaddr*) & server, sizeof (server))) {
+	if (connect (s, (struct sockaddr*) & server, sizeof (server))==-1) {
 		perror ("Client: cannot connect to server");
 		exit (1);
 	}
