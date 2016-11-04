@@ -87,25 +87,24 @@ int main(int argc, char* argv[])
 	//Handshake begin
 	receive_message(s, &number, 2);
 	if (ntohs(number) != 0xCFA7){
-		printf("%d\n",temp);
 		perror ("Client: failed to connect to server");
 		exit (1);
 	}
 	
 	receive_message(s, &number, sizeof (number));
 	number = ntohs(number);
-	printf("Number of users: %d\n",number);
+	printf("Number of other users: %d\n",number);
 	//Check if there are other users in server
 	if(number != 0){
 		for(i = 0; i<number; ++i){
-			receive_message(s,&stringLength,1);
-			receive_message(s,nameBuffer,stringLength);
-			addName(nodeHead,nameBuffer);
+			receive_message(s,&temp,1);
+			receive_message(s,nameBuffer,temp);
+			addName(nodeHead,nameBuffer,temp);
 		}
 	}
 	//Finally, send own username
-	addName(nodeHead,argv[3]);
 	number = strlen(argv[3]);
+	addName(nodeHead,argv[3],number);
 	temp = number;
 	send_message(s,&temp,1);
 	send_message(s,argv[3],number);
@@ -123,17 +122,17 @@ int main(int argc, char* argv[])
 	//Set up select
 	struct timeval tv;
     fd_set readfds;
-    fd_set writefds;
+    fd_set masterfds;
     tv.tv_usec = 500000;
-    int timeout = 9; //seconds until send idle message
+    int timeout = 25; //seconds until send idle message
     tv.tv_sec = timeout;
 	
+	FD_ZERO(&readfds);
+	FD_SET(s, &masterfds);
+	FD_SET(STDIN, &masterfds);
+	
 	while(1){
-		
-		FD_ZERO(&readfds);
-		FD_SET(s, &readfds);
-		FD_SET(STDIN, &readfds);
-		
+		readfds = masterfds;
 		if(select(s+1,&readfds, NULL, NULL, &tv) <= 0){
 			//perror("Client: Error while waiting for input/receiving output");
 			tv.tv_sec = timeout;
@@ -171,7 +170,7 @@ int main(int argc, char* argv[])
 				receive_message(s, &number, 1);
 				receive_message(s, nameBuffer, number);
 				printf("%s has entered.\n", nameBuffer);
-				addName(nodeHead,nameBuffer);
+				addName(nodeHead,nameBuffer,number);
 			}else if(temp==2){
 				//User left signal received
 				receive_message(s, &number, 1);
@@ -219,7 +218,7 @@ int main(int argc, char* argv[])
 				charCount = htons(charCount);
 				send_message(s,&charCount,2);
 				charCount = ntohs(charCount);
-				send_message(s, messageBuffer, charCount);
+				if(charCount != 0) send_message(s, messageBuffer, charCount);
 				tv.tv_sec = timeout; //Remember to reset idle timer
 			}
 			//clear messageBuffer for future messages
