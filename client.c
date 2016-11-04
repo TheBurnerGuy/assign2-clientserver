@@ -16,24 +16,20 @@
 //Sends username in the form of length string
 void send_message(int s, void* address, int byte_length){
 	if(send(s, address, byte_length, 0) <= 0){
-		fprintf(userlog,"Client: failed to send message/disconnected by server\n");
+		perror("Client: failed to send message/disconnected by server\n");
 		raise(SIGINT);
 	}
 }
 
 void receive_message(int s, void* address, int byte_length){
 	if(recv(s, address, byte_length, 0) <= 0){
-		fprintf(userlog,"Client: failed to receive message/disconnected by server\n");
+		perror("Client: failed to receive message/disconnected by server\n");
 		raise(SIGINT);
 	}
 }
 
 int main(int argc, char* argv[])
 {
-	 if (argc != 4){
-		perror("Invalid paramaters. Should be ./server379 ADDRESS PORT# USERNAME\n");
-		exit(1);
-	} 
 	int	s;
 	unsigned short number; //Used as a temporary variable, then the current users count
 	int PORT = atoi(argv[2]);
@@ -48,6 +44,7 @@ int main(int argc, char* argv[])
 	
 	//Initializing variables not related to socket initialization
 	int i, stringLength;
+	int updateBool = 0; //Boolean for whether to show updates or not
 	node* nodeHead = (node*)malloc(sizeof(node));
 	nodeHead->next = NULL;
 	unsigned char temp;
@@ -123,11 +120,6 @@ int main(int argc, char* argv[])
 	printNames(nodeHead);
 	
 	//Initialize some functions/signal handlers before entering select()
-	
-	//User log - used to report user-update messages (otherwise pointless)
-	
-	userlog = fopen("client379.log","w");
-	
 	int alarmBool = 0; //Variable was to be used for alarm, but used instead to tick off the idle messages
 	
 	//Set up select
@@ -159,13 +151,11 @@ int main(int argc, char* argv[])
 				receive_message(s, nameBuffer, temp);
 				receive_message(s, &number, 2);
 				number = ntohs(number);
-				//Special case: Message of length 0, write to a userlog
+				//Special case: Message of length 0, write to screen if /updates enabled
 				if(number == 0){
-					number = strlen(nameBuffer);
-					for(i = 0; i<number; ++i){
-						fputc(nameBuffer[i],userlog);
+					if(updateBool){
+						printf("Received update message from %s\n",nameBuffer);
 					}
-					number = 0;
 				}
 				//Normal case: Normal message
 				else{ //number!= 0
@@ -218,6 +208,21 @@ int main(int argc, char* argv[])
 				}
 				if(i==6){
 					printNames(nodeHead);
+				}
+				else{
+					printf("Command not found.\n");
+				}
+			}else if(messageBuffer[0]=='/' && charCount == 8){
+				//Slightly complex code to find if messageBuffer is equal to "/updates"
+				for(i = 0; i< charCount; ++i){
+					if(messageBuffer[i]!="/updates"[i]) break;
+				}
+				if(i==8){
+					if(updateBool){
+						updateBool = 0;
+					}else{
+						updateBool = 1;
+					}
 				}
 				else{
 					printf("Command not found.\n");
