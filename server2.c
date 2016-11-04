@@ -12,24 +12,26 @@
 #include <arpa/inet.h>
 
 #include "shared.h"
-
+#define MAXMESSAGESIZE 400
 
 int main(int argc, char* argv[]) 
 {
-	int listeningsocketfd, connectionsocketfd;                     
+	int listeningsocketfd, connectionsocketfd;                    
 	struct sockaddr_in master; 
 	struct sockaddr_in clientaddress; 
 	int sin_size = sizeof(master);              /* size of address structure */
 	int yes=1;        // for setsockopt() SO_REUSEADDR, below
-	
+
+
+
 	if (argc != 2)
-    {
-      perror("Invalid paramaters. Should be ./server379 PORT#\n");
-      exit(1);
+	{
+		perror("Invalid paramaters. Should be ./server379 PORT#\n");
+		exit(1);
 	}
 
 	if( (listeningsocketfd = socket( AF_INET, SOCK_STREAM, 0)) < 0) {
-	 	perror ("Client: cannot open socket");
+		perror ("Client: cannot open socket");
 		exit (1);
 	}
 
@@ -44,12 +46,12 @@ int main(int argc, char* argv[])
 	headNode->next = NULL;
 	node* currentNode;
 	char* nameBuffer = (char*)malloc(256);
-    if(nameBuffer == NULL){
+	if(nameBuffer == NULL){
 		perror ("Server: failed to allocate enough memory");
 		exit (1);
 	}
-	char* messageBuffer = (char*)malloc(sizeof(char)*65536);
-    if(messageBuffer == NULL){
+	char* messageBuffer = (char*)malloc(sizeof(char)*MAXMESSAGESIZE);
+	if(messageBuffer == NULL){
 		perror ("Client: failed to allocate enough memory");
 		exit (1);
 	}
@@ -64,9 +66,9 @@ int main(int argc, char* argv[])
 		exit( 1);
 	}
 	if (listen(listeningsocketfd, 10) == -1) {
-        perror("Server: listen failed");
-        exit(-1);
-    }
+		perror("Server: listen failed");
+		exit(-1);
+	}
 
     //Set up signal handlers
 	void signal_handler(int sig){
@@ -87,24 +89,49 @@ int main(int argc, char* argv[])
 	sigaction(SIGINT,&segv,0);
 	
 	// main loop for original server.
-    while(1)
-    {
+	while(1)
+	{
 		sin_size = sizeof( struct sockaddr_in);
-	
+		
 		if( (connectionsocketfd = accept( listeningsocketfd, (struct sockaddr *)&clientaddress, &sin_size)) < 0) {
 			perror ("Server: accept failed");
 			continue;
 		}
 
-		if( !fork()) 
+		pid_t processid;
+		processid  = fork();
+		if( !processid)  // if it is a child process. fork returns 0 for children
 		{        
-	
+			char message[ MAXMESSAGESIZE];
+			int messagelength;
+			close( listeningsocketfd); //children do not need to listen for incoming connections
+			message[ 0] = '\0';   
+			while(1) { // loop until child process closes
+				if( (messagelength = recv( connectionsocketfd, message, MAXMESSAGESIZE-1, 0)) == -1) {
+					perror("Server: failed to receive message");
+					exit( 1);                     
+				}
+				message[ messagelength] = '\0';               
 
+				printf("Message received: %s\n", message);
+				//int fdcounter = connectionsocketfd;
 
-		}
-		close(connectionsocketfd); 
+				//while (fdcounter >= 4) loop through sockets this method doesnt work
+				//{
+					if( send(connectionsocketfd, message, sizeof(message), 0) == -1) {
+					perror("Server: failed to send message");
+					exit( 1);                    
+					} 
+				//	fdcounter--;
+				//}
+			} 
+			close( connectionsocketfd);
+			exit( 0);                             
+		} //childprocess
+
+		
 
 	} //while
 
-return 0;
+	return 0;
 }
