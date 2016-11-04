@@ -12,7 +12,7 @@ void addName(node* nodeHead, char* name, int nameSize){
 		currentNode = currentNode->next;
 	}
 	currentNode->next = (node*)malloc(sizeof(node));
-	currentNode->name = (char*)malloc(sizeof(char)*nameSize+1);
+	currentNode->name = (char*)calloc(1,sizeof(char)*nameSize+1);
 	strncpy(currentNode->name,name,nameSize);
 	currentNode->next->next = NULL;
 }
@@ -24,7 +24,9 @@ void addNameServer(node* nodeHead, char* name, int nameSize, int fd, time_t idle
 	}
 	currentNode->next = (node*)malloc(sizeof(node));
 	 if (currentNode->next == NULL) raise(SIGINT);
-	currentNode->name = strndup(name,nameSize);
+	//~ currentNode->name = strndup(name,nameSize);
+	currentNode->name = (char*)calloc(1,sizeof(char)*nameSize+1);
+	strncpy(currentNode->name,name,nameSize);
 	currentNode->fd = fd;
 	currentNode->idleTime = idleTime;
 	currentNode->next->next = NULL;
@@ -77,6 +79,16 @@ node* findFd(node* nodeHead, int fd){
 		currentNode = currentNode->next;
 	}
 	return currentNode;
+}
+
+//finds if name is inside list of nodes
+int findName(node* nodeHead, char* name){
+	node* currentNode = nodeHead;
+	int length = strlen(name);
+	while(currentNode->next != NULL && strncmp(currentNode->name,name,length)!=0){
+		currentNode = currentNode->next;
+	}
+	return currentNode->next != NULL;
 }
 
 //Prints all names in list of nodes
