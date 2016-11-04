@@ -40,7 +40,7 @@ int main(int argc, char* argv[])
 	int i, stringLength;
 	node* nodeHead = (node*)malloc(sizeof(node));
 	nodeHead->next = NULL;
-	char temp;
+	unsigned char temp;
 	char* messageBuffer = (char*)malloc(sizeof(char)*65536);
     if(messageBuffer == NULL){
 		perror ("Client: failed to allocate enough memory");
@@ -85,16 +85,16 @@ int main(int argc, char* argv[])
 	//Finished Connecting
 	
 	//Handshake begin
-	receive_message(s, &number, sizeof (number));
-	if (number != htons(0xCFA7)){
+	receive_message(s, &number, 2);
+	if (ntohs(number) != 0xCFA7){
+		printf("%d\n",temp);
 		perror ("Client: failed to connect to server");
 		exit (1);
 	}
-	//fprintf (stderr, "Process %d gets number %d\n", getpid (),
-	//ntohl (number));
 	
 	receive_message(s, &number, sizeof (number));
 	number = ntohs(number);
+	printf("Number of users: %d\n",number);
 	//Check if there are other users in server
 	if(number != 0){
 		for(i = 0; i<number; ++i){
@@ -104,6 +104,7 @@ int main(int argc, char* argv[])
 		}
 	}
 	//Finally, send own username
+	addName(nodeHead,argv[3]);
 	number = strlen(argv[3]);
 	temp = number;
 	send_message(s,&temp,1);
@@ -117,34 +118,28 @@ int main(int argc, char* argv[])
 	FILE* userlog;
 	userlog = fopen("userlog.txt","w");
 	
-	int alarmBool = 0;
-	//Alarm signal handler function
-	void alarm_handler(int sig){ alarmBool = 1;}
-	alarm(9); //Initialize alarm
-	
-	//Set up alarm signal handler
-	struct sigaction sega;
-	sega.sa_handler = alarm_handler;
-	sigemptyset(&sega.sa_mask);
-	sega.sa_flags = 0;
-	sigaction(SIGALRM,&sega,0);
+	int alarmBool = 0; //Variable was to be used for alarm, but used instead to tick off the idle messages
 	
 	//Set up select
 	struct timeval tv;
     fd_set readfds;
     fd_set writefds;
     tv.tv_usec = 500000;
+    int timeout = 9; //seconds until send idle message
+    tv.tv_sec = timeout;
 	
 	while(1){
-		tv.tv_sec = 2;
+		
 		FD_ZERO(&readfds);
 		FD_SET(s, &readfds);
 		FD_SET(STDIN, &readfds);
 		
-		if(select(s+1,&readfds, NULL, NULL, &tv) == -1){
-			perror("Client: Error while waiting for input/receiving output");
-			raise(SIGINT);
+		if(select(s+1,&readfds, NULL, NULL, &tv) <= 0){
+			//perror("Client: Error while waiting for input/receiving output");
+			tv.tv_sec = timeout;
+			alarmBool = 1;
 		}
+		
 		//Was a message received?
 		if(FD_ISSET(s, &readfds)){
 			receive_message(s,&temp,1);
@@ -192,9 +187,9 @@ int main(int argc, char* argv[])
 		//If there's a message entered into STDIN, read it into messageBuffer
 		if(FD_ISSET(STDIN, &readfds)){
 			charCount = 0;
-			while(1){//waiting for temp == 10
-				receive_message(STDIN,&temp,1);
-				if(temp == 10){
+			while(1){//waiting for temp == 10 or 14
+				read(STDIN,&temp,1);
+				if(temp == 10 || temp == 14){
 					break;
 				}
 				messageBuffer[charCount] = temp;
@@ -211,26 +206,24 @@ int main(int argc, char* argv[])
 					printNames(nodeHead);
 				}
 				else{
-					printf("Command not found.");
+					printf("Command not found.\n");
 				}
 			}else if(messageBuffer[0]=='/'){
-				printf("Command not found.");
+				printf("Command not found.\n");
 			//Normal Case:
 			}else{
 				charCount = htons(charCount);
 				send_message(s,&charCount,2);
 				send_message(s, messageBuffer, ntohs(charCount));
-				alarmBool = 0;
-				alarm(9);
+				tv.tv_sec = timeout; //Remember to reset idle timer
 			}
 		}//End FD_ISSET STDIN
 		//If no message has been sent in the past 9 seconds, send an idle message
 		if(alarmBool){
-			fprintf(stderr, "Sending idle message\n"); //Testing
-			number = htons(0);
+			perror("Sending idle message\n"); //Testing
+			number = 0; //htons(0)
 			send_message(s,&number,2);
 			alarmBool = 0;
-			alarm(9);
 		}
 	}//END while loop
 }//END main()
