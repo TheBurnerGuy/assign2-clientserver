@@ -5,7 +5,7 @@ typedef struct node_{
 	time_t idleTime;
 }node;
 
-//Adds name to list
+//Adds name to list -- client only
 void addName(node* nodeHead, char* name, int nameSize){
 	node* currentNode = nodeHead;
 	while(currentNode->next != NULL){
@@ -17,6 +17,7 @@ void addName(node* nodeHead, char* name, int nameSize){
 	currentNode->next->next = NULL;
 }
 
+//Adds name, file descriptor, and idling time to list -- server only
 void addNameServer(node* nodeHead, char* name, int nameSize, int fd, time_t idleTime){
 	node* currentNode = nodeHead;
 	while(currentNode->next != NULL){
@@ -91,7 +92,7 @@ int findName(node* nodeHead, char* name){
 	return currentNode->next != NULL;
 }
 
-//Prints all names in list of nodes
+//Prints all names in list of nodes to STDOUT
 void printNames(node* nodeHead){
 	node* currentNode = nodeHead;
 	printf("Users:");
@@ -123,5 +124,3 @@ void deleteNodes(node* nodeHead){
 		free(currentNode);
 	}
 }
-
-FILE* userlog;
