@@ -21,6 +21,7 @@ int send_message(int s, void* address, int byte_length){
 		perror("Server: failed to send message");
 		return 0;
 	}
+	debug_message(1, address, byte_length);
 	return 1;
 }
 
@@ -29,8 +30,10 @@ int receive_message(int s, void* address, int byte_length){
 		perror("Server: failed to receive message");
 		return 0;
 	}
+	debug_message(0, address, byte_length);
 	return 1;
 }
+
 
 int main(int argc, char* argv[])
 {	

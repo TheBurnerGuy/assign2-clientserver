@@ -109,3 +109,16 @@ void deleteNodes(node* nodeHead){
 		free(currentNode);
 	}
 }
+
+void debug_message(int flag, void *address, int byte_length){
+	if (flag==0) {
+		printf("Recieved message:");
+	} else {
+		printf("Sent message:");
+	}
+	int i=0;
+	for (i=0; i<byte_length; i++){
+		printf("%c", *((char*)address+i));
+	}
+	printf("\n");
+}
