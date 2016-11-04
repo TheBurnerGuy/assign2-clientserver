@@ -16,14 +16,14 @@
 //Sends username in the form of length string
 void send_message(int s, void* address, int byte_length){
 	if(send(s, address, byte_length, 0) <= 0){
-		perror("Client: failed to send message");
+		perror("Client: failed to send message/disconnected by server\n");
 		raise(SIGINT);
 	}
 }
 
 void receive_message(int s, void* address, int byte_length){
 	if(recv(s, address, byte_length, 0) <= 0){
-		perror("Client: failed to receive message");
+		perror("Client: failed to receive message/disconnected by server\n");
 		raise(SIGINT);
 	}
 }
@@ -147,7 +147,6 @@ int main(int argc, char* argv[])
 				//User message received -- might have error since unsigned short is supposed to be 2 bytes long?
 				receive_message(s, &temp, 1);
 				receive_message(s, nameBuffer, temp);
-				printf("%s: ",nameBuffer);
 				receive_message(s, &number, 2);
 				number = ntohs(number);
 				//Special case: Message of length 0, write to a userlog
@@ -160,19 +159,24 @@ int main(int argc, char* argv[])
 				}
 				//Normal case: Normal message
 				else{ //number!= 0
-					receive_message(s, &messageBuffer,number);
-					printf("%s",messageBuffer);
-					printf("\n");
+					receive_message(s, messageBuffer,number);
+					printf("%s: %s\n",nameBuffer, messageBuffer);
+					memset(messageBuffer, 0, number+1); //clear messageBuffer for future messages
 				}
+				//clear nameBuffer 
+				memset(nameBuffer, 0, temp+1);
+				
 			}else if(temp==1){
 				//New user signal received
 				receive_message(s, &number, 1);
 				receive_message(s, nameBuffer, number);
+				printf("%s has entered.\n", nameBuffer);
 				addName(nodeHead,nameBuffer);
 			}else if(temp==2){
 				//User left signal received
 				receive_message(s, &number, 1);
 				receive_message(s, nameBuffer, number);
+				printf("%s has left.\n", nameBuffer);
 				deleteNode = removeName(nodeHead,nameBuffer); //value returned to deleteNode is the node with the username found with removeName()
 				if (nodeHead->name == deleteNode->name){
 					nodeHead = nodeHead->next;
@@ -214,13 +218,16 @@ int main(int argc, char* argv[])
 			}else{
 				charCount = htons(charCount);
 				send_message(s,&charCount,2);
-				send_message(s, messageBuffer, ntohs(charCount));
+				charCount = ntohs(charCount);
+				send_message(s, messageBuffer, charCount);
 				tv.tv_sec = timeout; //Remember to reset idle timer
 			}
+			//clear messageBuffer for future messages
+			memset(messageBuffer, 0, charCount); 
 		}//End FD_ISSET STDIN
 		//If no message has been sent in the past 9 seconds, send an idle message
 		if(alarmBool){
-			perror("Sending idle message\n"); //Testing
+			//perror("Sending idle message\n"); //Testing
 			number = 0; //htons(0)
 			send_message(s,&number,2);
 			alarmBool = 0;
