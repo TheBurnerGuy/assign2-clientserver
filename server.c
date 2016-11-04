@@ -18,15 +18,16 @@
 //Should be writing to log instead of STDERR
 int send_message(int s, void* address, int byte_length){
 	if(send(s, address, byte_length, 0) <= 0){
-		perror("Server: failed to send message");
+		fprintf(userlog, "Server: failed to send message\n");
 		return 0;
-	}
+	} 
 	return 1;
-}
+} 
 
 int receive_message(int s, void* address, int byte_length){
 	if(recv(s, address, byte_length, 0) <= 0){
-		perror("Server: failed to receive message");
+		// this also prints with keyboard interrupt
+		fprintf(userlog, "Server: failed to receive message\n");
 		return 0;
 	}
 	return 1;
@@ -69,6 +70,16 @@ int main(int argc, char* argv[])
     //~ close(STDIN_FILENO);
     //~ close(STDOUT_FILENO);
     //~ close(STDERR_FILENO);
+	char pidstring[5];
+	sprintf (pidstring, "%d", getpid());
+	char filename[20];
+	strcpy(filename, "server379");
+	strcat(filename, pidstring);
+	strcat(filename,".log");
+	
+	
+	userlog = fopen(filename,"w");
+	
 
 	//Initializing stuff
 	int	sock, fromlength, snew, i, j, nbytes, bool;
@@ -383,3 +394,7 @@ int main(int argc, char* argv[])
 //~ 
 	//~ listener = socket(AF_INET, SOCK_STREAM, 0);
 }
+
+
+
+

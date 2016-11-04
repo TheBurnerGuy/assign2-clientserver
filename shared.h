@@ -1,3 +1,4 @@
+
 typedef struct node_{
 	char* name;
 	struct node_* next;
@@ -110,4 +111,28 @@ void deleteNodes(node* nodeHead){
 		nodeHead = nodeHead->next;
 		free(currentNode);
 	}
+}
+
+FILE* userlog;
+
+void debug_message(int flag, void *address, int byte_length){
+	if (flag==0) {
+		fprintf(userlog, "Recieved message:");
+	} else {
+		fprintf(userlog,"Sent message:");
+	}
+	
+	int i,byte;
+	
+	for (i=0; i<byte_length; i++){
+		int byte = *((int*)address+i);
+		if (byte>127){
+
+		} else {
+			printf("%c", *((char*)address+i));
+			fprintf(userlog,"%c", *((char*)address+i));
+		}
+	}
+	fprintf(userlog, "\n");
+
 }

@@ -16,14 +16,14 @@
 //Sends username in the form of length string
 void send_message(int s, void* address, int byte_length){
 	if(send(s, address, byte_length, 0) <= 0){
-		perror("Client: failed to send message/disconnected by server\n");
+		fprintf(userlog,"Client: failed to send message/disconnected by server\n");
 		raise(SIGINT);
 	}
 }
 
 void receive_message(int s, void* address, int byte_length){
 	if(recv(s, address, byte_length, 0) <= 0){
-		perror("Client: failed to receive message/disconnected by server\n");
+		fprintf(userlog,"Client: failed to receive message/disconnected by server\n");
 		raise(SIGINT);
 	}
 }
@@ -115,8 +115,8 @@ int main(int argc, char* argv[])
 	//Initialize some functions/signal handlers before entering select()
 	
 	//User log - used to report user-update messages (otherwise pointless)
-	FILE* userlog;
-	userlog = fopen("userlog.txt","w");
+	
+	userlog = fopen("client379.log","w");
 	
 	int alarmBool = 0; //Variable was to be used for alarm, but used instead to tick off the idle messages
 	
