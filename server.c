@@ -77,8 +77,8 @@ int main(int argc, char* argv[])
 	time_t currentTime = time(NULL);
 	
 	//Set up example username list
-	node* headNode = (node*)malloc(sizeof(node));
-	headNode->next = NULL;
+	node* nodeHead = (node*)malloc(sizeof(node));
+	nodeHead->next = NULL;
 	node* currentNode;
 	char* nameBuffer = (char*)malloc(256);
     if(nameBuffer == NULL){
@@ -117,12 +117,12 @@ int main(int argc, char* argv[])
 		perror("Terminating...");
 		//Close all sockets connected to the server
 		close(sock);
-		currentNode = headNode;
+		currentNode = nodeHead;
 		while(currentNode->next!= NULL){
 			close(currentNode->fd);
 			currentNode = currentNode->next;
 		}
-		deleteNodes(headNode);
+		deleteNodes(nodeHead);
 		exit(0);
 	}
 	struct sigaction segv;
@@ -150,12 +150,19 @@ int main(int argc, char* argv[])
 		tv.tv_sec = 2;
         read_fds = master_fds;
         time(&currentTime);//reset currentTime every loop
+        nameBuffer = calloc(1,256);
         
         if (select(fdmax+1, &read_fds, NULL, NULL, &tv) == -1) {
             perror("select");
             exit(-1);
         }
-
+        //~ printf("%hi\n",nameCount(nodeHead));
+		//~ currentNode = nodeHead;
+		//~ while(currentNode->next!=NULL){
+			//~ printf("Select: This node has: %s\n",currentNode->name);
+			//~ currentNode->next = NULL;
+		//~ }
+		
         // run through the existing connections looking for data to read
         for(i = 0; i <= fdmax; i++) {
             if (FD_ISSET(i, &read_fds)) { // we got one!!
@@ -165,7 +172,7 @@ int main(int argc, char* argv[])
 					snew = accept (sock, (struct sockaddr*) & from, & fromlength);
 					if (snew < 0) {
 						perror ("Server: accept failed");
-						//exit(1);
+						exit(-1);
 					}else{
                         //printf("selectserver: new connection from %s:%d on socket %d\n", inet_ntoa(remoteaddr.sin_addr), ntohs(remoteaddr.sin_port), newfd);
                         //Initial handshake
@@ -173,9 +180,9 @@ int main(int argc, char* argv[])
 						tempChar2 = 0xA7;
 						bool = send_message (snew, &tempChar, 1); //Assumes send() will return -1 if socket is disconnected
 						bool = send_message (snew, &tempChar2, 1);
-						tempNum = htons(nameCount(headNode));
+						tempNum = htons(nameCount(nodeHead));
 						bool = send_message (snew, &tempNum, 2);
-						currentNode = headNode;
+						currentNode = nodeHead;
 						while(currentNode->next!=NULL){
 							tempChar = strlen(currentNode->name);
 							bool = send_message(snew, &tempChar, 1);
@@ -184,15 +191,14 @@ int main(int argc, char* argv[])
 						}
 						//If no error received from sending in socket... (should probably check if receive is successful anyway)
 						if(bool != 0){
-							if(receive_message(snew, &tempChar, 1) == 0 || receive_message(snew, nameBuffer, tempChar)== 0){
-								perror("error from receive handshake");
-								close(snew);
-								continue;
-							}
+							printf("Server: socket %d connected\n", snew);
+							receive_message(snew, &tempChar, 1);
+							//~ memset(nameBuffer, 0, tempChar+1);
+							receive_message(snew, nameBuffer, tempChar);
 							//End handshake
 							//Now add it to the server's data structures
-							addNameServer(headNode,nameBuffer,snew,currentTime);
-							printNames(headNode); //just a test ;)
+							addNameServer(nodeHead,nameBuffer,tempChar,snew,currentTime);
+							//~ //printNames(nodeHead); //just a test ;)
 							FD_SET(snew, &master_fds); // add to master set
 							if (snew > fdmax) {    // keep track of the max
 								fdmax = snew;
@@ -200,7 +206,7 @@ int main(int argc, char* argv[])
 							//Send user connected message
 							tempChar2 = 1;
 							for(j = 0; j <= fdmax; j++) {
-								if (FD_ISSET(j, &master_fds)) {//is this really needed?
+								if (FD_ISSET(j, &master_fds)) {
 									// except the listener and ourselves
 									if (j != sock && j != snew) {
 										//Send 0x01
@@ -213,14 +219,14 @@ int main(int argc, char* argv[])
 									}
 								}
 							}
+						}else{
+							//Error has occurred, close socket
+							perror("Server: error sending usernames\n");
+							close(snew);
 						}
                     }
                 } else {
                     // handle data from a client
-					//Implementing this part without using fork for now, until can figure out a good fork implementation
-					//Personal notes:
-					//Advantages for using fork(): Doesn't have to search for socket's name using socket fd
-					//Disadvantages: Have to keep each child process separate... (definitely possible)
                     if (receive_message(i, &tempNum, 2) <= 0) {
                         // got error or connection closed by client
                         // connection closed -- should write to a log instead of STDOUT here
@@ -231,9 +237,9 @@ int main(int argc, char* argv[])
 						//if i was fdmax, use fdmax-1
 						if (fdmax == i) --fdmax;
                         //remove node from list of nodes
-                        currentNode = removeFd(headNode,i);
-                        if (headNode == currentNode){
-							headNode = headNode->next;
+                        currentNode = removeFd(nodeHead,i);
+                        if (nodeHead == currentNode){
+							nodeHead = nodeHead->next;
 						}
 						nameBuffer = currentNode->name;
 						tempChar = strlen(nameBuffer);
@@ -248,23 +254,22 @@ int main(int argc, char* argv[])
 									if (send_message(j, &tempChar2, 1) == 0) continue;
 									//Send username length
 									if (send_message(j, &tempChar, 1) == 0) continue;
-									//might try to terminate connection here? Will test later
 									//Send username
 									if (send_message(j, nameBuffer, tempChar) == 0) continue;
-									//might try to terminate connection here? Will test later
                                 }
                             }
                         }
                     } else {
-                        // received data from a client
+                        // received message from a client
                         tempNum2 = ntohs(tempNum);
-                        currentNode = findFd(headNode, i);
+                        currentNode = findFd(nodeHead, i);
 						nameBuffer = currentNode->name;
 						currentNode->idleTime = currentTime; //update user's last sent msg time
 						tempChar = strlen(nameBuffer);
                         //Special case: Idle message
                         if(tempNum == 0){
 							// send to everyone!
+							printf("Server: received idle message from %d\n",i);
 							for(j = 0; j <= fdmax; j++) {
 								if (FD_ISSET(j, &master_fds)) {//is this really needed?
 									// except the listener and ourselves
@@ -312,9 +317,10 @@ int main(int argc, char* argv[])
                 } // END handle data from client
             } // END got new incoming connection
             //Check if any connections have been idled for more than 30
-			currentNode = headNode;
+			currentNode = nodeHead;
 			while(currentNode->next!=NULL){
 				if(currentTime - currentNode->idleTime >= 30){
+					printf("Server: socket %d failed to send idle message\n", currentNode->fd);
 					//Close socket, and send termination message to all sockets
                     FD_CLR(currentNode->fd, &master_fds);
 					//if i was fdmax, use fdmax-1
@@ -339,9 +345,9 @@ int main(int argc, char* argv[])
                         }
                     }
                     //remove node from list of nodes
-                    currentNode = removeFd(headNode,currentNode->fd);
-                    if (headNode == currentNode){
-						headNode = headNode->next;
+                    currentNode = removeFd(nodeHead,currentNode->fd);
+                    if (nodeHead == currentNode){
+						nodeHead = nodeHead->next;
 					}
                     close(currentNode->fd);
                     free(currentNode);
@@ -352,34 +358,4 @@ int main(int argc, char* argv[])
     } // END while()
 	
 	return 0;
-	
-	
-	
-	
-	
-	//NOTE!!!!!!!!!
-	//This is a copy paste from demo2... will revise!
-	//Code below is not functional, do not use!
-	//NOTE!!!!!
-
-	//~ fd_set master;    // master file descriptor list
-    //~ fd_set read_fds;  // temp file descriptor list for select()
-    //~ int fdmax;        // maximum file descriptor number
-//~ 
-    //~ int listener;     // listening socket descriptor
-    //~ int newfd;        // newly accept()ed socket descriptor
-    //~ struct sockaddr_in sa; 
-    //~ struct sockaddr_in remoteaddr; // client address
-    //~ socklen_t addrlen;
-//~ 
-    //~ char buf[256];    // buffer for client data
-    //~ int nbytes;
-    //~ 
-    //~ int yes=1;        // for setsockopt() SO_REUSEADDR, below
-    //~ int i, j, rv;
-//~ 
-    //~ FD_ZERO(&master);    // clear the master and temp sets
-    //~ FD_ZERO(&read_fds);
-//~ 
-	//~ listener = socket(AF_INET, SOCK_STREAM, 0);
 }
