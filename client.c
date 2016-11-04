@@ -34,7 +34,13 @@ int main(int argc, char* argv[])
 	unsigned short number; //Used as a temporary variable, then the current users count
 	int PORT = atoi(argv[2]);
 	struct	sockaddr_in	server;
-	unsigned long host = inet_addr (argv[1]); //0.0.0.0
+	//~ unsigned long host = inet_addr (argv[1]); //0.0.0.0
+	struct	hostent	*host;
+	host = gethostbyname (argv[1]);
+	if (host == NULL) {
+		perror ("Client: cannot get host description");
+		exit (1);
+	}
 	
 	//Initializing variables not related to socket initialization
 	int i, stringLength;
@@ -75,7 +81,8 @@ int main(int argc, char* argv[])
 		exit (1);
 	}
 	bzero (&server, sizeof (server));
-	server.sin_addr.s_addr = host;
+	bcopy (host->h_addr, & (server.sin_addr), host->h_length);
+	//~ server.sin_addr.s_addr = host;
 	server.sin_family = AF_INET;
 	server.sin_port = htons (PORT);
 	if (connect (s, (struct sockaddr*) & server, sizeof (server))==-1) {
