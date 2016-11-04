@@ -30,6 +30,10 @@ void receive_message(int s, void* address, int byte_length){
 
 int main(int argc, char* argv[])
 {
+	 if (argc != 4){
+		perror("Invalid paramaters. Should be ./server379 ADDRESS PORT# USERNAME\n");
+		exit(1);
+	} 
 	int	s;
 	unsigned short number; //Used as a temporary variable, then the current users count
 	int PORT = atoi(argv[2]);

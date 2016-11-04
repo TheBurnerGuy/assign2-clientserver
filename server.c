@@ -70,6 +70,11 @@ int main(int argc, char* argv[])
     //~ close(STDIN_FILENO);
     //~ close(STDOUT_FILENO);
     //~ close(STDERR_FILENO);
+    if (argc != 2){
+		perror("Invalid paramaters. Should be ./server379 PORT#\n");
+		exit(1);
+	}
+	
 	char pidstring[5];
 	sprintf (pidstring, "%d", getpid());
 	char filename[20];
