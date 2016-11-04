@@ -7,24 +7,27 @@ typedef struct node_{
 }node;
 
 //Adds name to list
-void addName(node* nodeHead, char* name){
+void addName(node* nodeHead, char* name, int nameSize){
 	node* currentNode = nodeHead;
 	while(currentNode->next != NULL){
 		currentNode = currentNode->next;
 	}
 	currentNode->next = (node*)malloc(sizeof(node));
-	currentNode->name = name;
+	currentNode->name = (char*)calloc(1,sizeof(char)*nameSize+1);
+	strncpy(currentNode->name,name,nameSize);
 	currentNode->next->next = NULL;
 }
 
-void addNameServer(node* nodeHead, char* name, int fd, time_t idleTime){
+void addNameServer(node* nodeHead, char* name, int nameSize, int fd, time_t idleTime){
 	node* currentNode = nodeHead;
 	while(currentNode->next != NULL){
 		currentNode = currentNode->next;
 	}
 	currentNode->next = (node*)malloc(sizeof(node));
-	if (currentNode->next == NULL) raise(SIGINT);
-	currentNode->name = name;
+	 if (currentNode->next == NULL) raise(SIGINT);
+	//~ currentNode->name = strndup(name,nameSize);
+	currentNode->name = (char*)calloc(1,sizeof(char)*nameSize+1);
+	strncpy(currentNode->name,name,nameSize);
 	currentNode->fd = fd;
 	currentNode->idleTime = idleTime;
 	currentNode->next->next = NULL;
@@ -33,17 +36,17 @@ void addNameServer(node* nodeHead, char* name, int fd, time_t idleTime){
 //Finds and removes name from list
 //Preassumption: name is inside of list of nodes, each username is unique
 //Example:if (nodeHead->name == deleteNode->name){
-			//nodeHead = nodeHead->next;
+		//nodeHead = nodeHead->next;
 		//}
 		//free(deleteNode);
 node* removeName(node* nodeHead, char* name){
 	//Special case: node is head
-	if(nodeHead->name == name){
-		node* tempNode = nodeHead;
-		return tempNode;
+	int n = strlen(name);
+	if(strncmp(nodeHead->name,name,n)==0){
+		return nodeHead;
 	}
 	node* currentNode = nodeHead;
-	while((currentNode->next != NULL) && (currentNode->next->name != name)){
+	while((currentNode->next != NULL) && (strncmp(currentNode->next->name,name,n)!=0)){
 		currentNode = currentNode->next;
 	}
 	//Actually returns node before found node for deletion purposes
@@ -57,8 +60,7 @@ node* removeName(node* nodeHead, char* name){
 node* removeFd(node* nodeHead, int fd){
 	//Special case: node is head
 	if(nodeHead->fd == fd){
-		node* tempNode = nodeHead;
-		return tempNode;
+		return nodeHead;
 	}
 	node* currentNode = nodeHead;
 	while((currentNode->next != NULL) && (currentNode->next->fd != fd)){
@@ -78,6 +80,16 @@ node* findFd(node* nodeHead, int fd){
 		currentNode = currentNode->next;
 	}
 	return currentNode;
+}
+
+//finds if name is inside list of nodes
+int findName(node* nodeHead, char* name){
+	node* currentNode = nodeHead;
+	int length = strlen(name);
+	while(currentNode->next != NULL && strncmp(currentNode->name,name,length)!=0){
+		currentNode = currentNode->next;
+	}
+	return currentNode->next != NULL;
 }
 
 //Prints all names in list of nodes
