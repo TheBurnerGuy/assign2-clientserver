@@ -1,4 +1,5 @@
 #include <sys/types.h>
+#include <sys/select.h>
 #include <sys/socket.h>
 #include <sys/time.h>
 #include <netinet/in.h>
@@ -12,22 +13,21 @@
 
 #include "shared.h"
 
+//node for server -- bigger than client
+
 //send_message()
 //sends message to specified socket while checking for errors
 //returns 0 if socket closed or error occurred, returns 1 if send was successful
 //Should be writing to log instead of STDERR
 int send_message(int s, void* address, int byte_length){
 	if(send(s, address, byte_length, 0) <= 0){
-		fprintf(userlog, "Server: failed to send message\n");
 		return 0;
-	} 
+	}
 	return 1;
-} 
+}
 
 int receive_message(int s, void* address, int byte_length){
 	if(recv(s, address, byte_length, 0) <= 0){
-		// this also prints with keyboard interrupt
-		fprintf(userlog, "Server: failed to receive message\n");
 		return 0;
 	}
 	return 1;
@@ -35,57 +35,63 @@ int receive_message(int s, void* address, int byte_length){
 
 int main(int argc, char* argv[])
 {	
-	
-	//Daemon stuff should go here? ctrl+e reminder
-	//~ pid_t pid = 0;
-    //~ pid_t sid = 0;
-    //~ pid = fork();
-    //~ if (pid < 0){
-        //~ perror("fork failed!\n");
-        //~ exit(1);
-    //~ }
-    //~ if (pid > 0){
-       //~ printf("pid of child process %d \n", pid);
-       //~ exit(0); 
-    //~ }
-    //~ umask(0);
-	//~ // open a log file
-    //~ fp = fopen ("logfile.log", "w+");
-    //~ if(!fp){
-    	//~ printf("cannot open log file");
-    //~ }
-    //~ // create new process group
-    //~ sid = setsid();
-    //~ if(sid < 0)
-    //~ {
-    	//~ fprintf(fp, "cannot create new process group");
-        //~ exit(1);
-    //~ }
-    //~ /* Change the current working directory */ 
-    //~ if ((chdir("/")) < 0) {
-      //~ printf("Could not change working directory to /\n");
-      //~ exit(1);
-    //~ }
-	//~ // close standard fds
-    //~ close(STDIN_FILENO);
-    //~ close(STDOUT_FILENO);
-    //~ close(STDERR_FILENO);
-    if (argc != 2){
-		perror("Invalid paramaters. Should be ./server379 PORT#\n");
-		exit(1);
+	char* fileName = (char*)malloc(256);
+    if(fileName == NULL){
+		exit (1);
 	}
 	
-	char pidstring[5];
-	sprintf (pidstring, "%d", getpid());
-	char filename[20];
-	strcpy(filename, "server379");
-	strcat(filename, pidstring);
-	strcat(filename,".log");
+	//Daemon stuff should go here? ctrl+e reminder
+	pid_t pid = 0;
+    pid_t sid = 0;
+    pid = fork();
+    if (pid < 0){
+        //perror("fork failed!\n");
+        exit(1);
+    }
+    if (pid > 0){
+		//parent process waits until receives SIGINT, then kills child
+		void psignal_handler(int sig){
+			kill(pid,SIGINT);
+			wait(NULL);
+			exit(0);
+		}
+		
+		struct sigaction segv;
+		segv.sa_handler = psignal_handler;
+		sigemptyset(&segv.sa_mask);
+		segv.sa_flags = 0;
+		sigaction(SIGINT,&segv,0);
+		
+		while(1){
+			sleep(0.5);//Busy wait
+		}
+		exit(0); 
+    }
+    umask(0);
+    // open a log file
+    sprintf(fileName,"cmput379%d.log",pid);
+    FILE* fp;
+    fp = fopen (fileName, "w+");
+    if(!fp){
+    	printf("cannot open log file");
+    }
+    // create new process group
+    sid = setsid();
+    if(sid < 0)
+    {
+    	fprintf(fp, "cannot create new process group");
+        exit(1);
+    }
+    /* Change the current working directory */ 
+    if ((chdir("/")) < 0) {
+      fprintf(fp,"Could not change working directory to /\n");
+      exit(1);
+    }
+	// close standard fds
+    close(STDIN_FILENO);
+    close(STDOUT_FILENO);
+    close(STDERR_FILENO);
 	
-	
-	userlog = fopen(filename,"w");
-	
-
 	//Initializing stuff
 	int	sock, fromlength, snew, i, j, nbytes, bool;
 	unsigned short tempNum, tempNum2;
@@ -96,21 +102,29 @@ int main(int argc, char* argv[])
 	node* nodeHead = (node*)malloc(sizeof(node));
 	nodeHead->next = NULL;
 	node* currentNode;
+	
+	char* fileBuffer = (char*)malloc(256);
+    if(fileBuffer == NULL){
+		exit (1);
+	}
 	char* nameBuffer = (char*)malloc(256);
     if(nameBuffer == NULL){
-		perror ("Server: failed to allocate enough memory");
+		//~ sprintf(fileBuffer,"Server: failed to allocate enough memory");
+		//~ fputs(fileBuffer, fp)
+		//~ exit(1);
+		fputs("Server: failed to allocate enough memory\n",fp);
 		exit (1);
 	}
 	char* messageBuffer = (char*)malloc(sizeof(char)*65536);
     if(messageBuffer == NULL){
-		perror ("Client: failed to allocate enough memory");
+		fputs("Client: failed to allocate enough memory\n",fp);
 		exit (1);
 	}
 	
 	struct	sockaddr_in	master, from;
 	sock = socket (AF_INET, SOCK_STREAM, 0);
 	if (sock < 0) {
-		perror ("Server: cannot open master socket");
+		fputs("Server: cannot open master socket\n",fp);
 		exit (1);
 	}
 	memset(&master, 0, sizeof (master));
@@ -118,11 +132,11 @@ int main(int argc, char* argv[])
 	master.sin_addr.s_addr = inet_addr("127.0.0.1");//replaced INADDR_ANY
 	master.sin_port = htons (atoi(argv[1]));
 	if (bind (sock, (struct sockaddr*) &master, sizeof (master))) {
-		perror ("Server: cannot bind master socket");
+		fputs("Server: cannot bind master socket\n",fp);
 		exit (1);
 	}
 	if (listen(sock, 10) == -1) {
-        perror("Server: listen failed");
+        fputs("Server: listen failed\n",fp);
         exit(-1);
     }
 	
@@ -130,7 +144,7 @@ int main(int argc, char* argv[])
 	
 	//Set up signal handlers
 	void signal_handler(int sig){
-		perror("Terminating...");
+		fputs("Terminating...\n",fp);
 		//Close all sockets connected to the server
 		close(sock);
 		currentNode = nodeHead;
@@ -159,8 +173,6 @@ int main(int argc, char* argv[])
 	struct timeval tv;
 	tv.tv_usec = 500000;
 	
-	printf("Start\n");
-	
 	// main loop for original server.
     while(1){
 		tv.tv_sec = 2;
@@ -169,7 +181,7 @@ int main(int argc, char* argv[])
         nameBuffer = calloc(1,256);
         
         if (select(fdmax+1, &read_fds, NULL, NULL, &tv) == -1) {
-            perror("select");
+            fputs("select\n",fp);
             exit(-1);
         }
 		
@@ -181,7 +193,7 @@ int main(int argc, char* argv[])
                     fromlength = sizeof (from);
 					snew = accept (sock, (struct sockaddr*) & from, & fromlength);
 					if (snew < 0) {
-						perror ("Server: accept failed");
+						fputs("Server: accept failed\n",fp);
 						exit(-1);
 					}else{
                         //printf("selectserver: new connection from %s:%d on socket %d\n", inet_ntoa(remoteaddr.sin_addr), ntohs(remoteaddr.sin_port), newfd);
@@ -201,13 +213,15 @@ int main(int argc, char* argv[])
 						}
 						//If no error received from sending in socket... (should probably check if receive is successful anyway)
 						if(bool != 0){
-							printf("Server: socket %d connected\n", snew);
+							sprintf(fileBuffer,"Server: socket %d connected\n", snew);
+							fputs(fileBuffer, fp);
 							receive_message(snew, &tempChar, 1);
 							//~ memset(nameBuffer, 0, tempChar+1);
 							receive_message(snew, nameBuffer, tempChar);
 							//Special Case: What if username is already logged in?
 							if(findName(nodeHead, nameBuffer)==1){
-								printf("Server: %s is already in server.\n",nameBuffer);
+								sprintf(fileBuffer,"Server: %s is already in server.\n",nameBuffer);
+								fputs(fileBuffer, fp);
 								close(snew);
 							}else{
 								//End handshake
@@ -237,7 +251,7 @@ int main(int argc, char* argv[])
 							}
 						}else{
 							//Error has occurred, close socket
-							perror("Server: error sending usernames\n");
+							fputs("Server: error sending usernames\n",fp);
 							close(snew);
 						}
                     }
@@ -246,7 +260,8 @@ int main(int argc, char* argv[])
                     if (receive_message(i, &tempNum, 2) <= 0) {
                         // got error or connection closed by client
                         // connection closed -- should write to a log instead of STDOUT here
-                        printf("Server: socket %d hung up\n", i);
+                        sprintf(fileBuffer,"Server: socket %d hung up\n", i);
+						fputs(fileBuffer, fp);
                         //close socket and remove from master file descriptor
                         close(i);
                         FD_CLR(i, &master_fds);
@@ -285,7 +300,8 @@ int main(int argc, char* argv[])
                         //Special case: Idle message
                         if(tempNum == 0){
 							// send to everyone!
-							printf("Server: received idle message from %d\n",i);
+							sprintf(fileBuffer,"Server: received idle message from %d\n",i);
+							fputs(fileBuffer, fp);
 							for(j = 0; j <= fdmax; j++) {
 								if (FD_ISSET(j, &master_fds)) {//is this really needed?
 									// except the listener and ourselves
@@ -336,7 +352,8 @@ int main(int argc, char* argv[])
 			currentNode = nodeHead;
 			while(currentNode->next!=NULL){
 				if(currentTime - currentNode->idleTime >= 30){
-					printf("Server: socket %d failed to send idle message\n", currentNode->fd);
+					sprintf(fileBuffer,"Server: socket %d failed to send idle message\n", currentNode->fd);
+					fputs(fileBuffer, fp);
 					//Close socket, and send termination message to all sockets
                     FD_CLR(currentNode->fd, &master_fds);
 					//if i was fdmax, use fdmax-1
@@ -375,7 +392,3 @@ int main(int argc, char* argv[])
 	
 	return 0;
 }
-
-
-
-
