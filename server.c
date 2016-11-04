@@ -156,12 +156,6 @@ int main(int argc, char* argv[])
             perror("select");
             exit(-1);
         }
-        //~ printf("%hi\n",nameCount(nodeHead));
-		//~ currentNode = nodeHead;
-		//~ while(currentNode->next!=NULL){
-			//~ printf("Select: This node has: %s\n",currentNode->name);
-			//~ currentNode->next = NULL;
-		//~ }
 		
         // run through the existing connections looking for data to read
         for(i = 0; i <= fdmax; i++) {
@@ -195,27 +189,33 @@ int main(int argc, char* argv[])
 							receive_message(snew, &tempChar, 1);
 							//~ memset(nameBuffer, 0, tempChar+1);
 							receive_message(snew, nameBuffer, tempChar);
-							//End handshake
-							//Now add it to the server's data structures
-							addNameServer(nodeHead,nameBuffer,tempChar,snew,currentTime);
-							//~ //printNames(nodeHead); //just a test ;)
-							FD_SET(snew, &master_fds); // add to master set
-							if (snew > fdmax) {    // keep track of the max
-								fdmax = snew;
-							}
-							//Send user connected message
-							tempChar2 = 1;
-							for(j = 0; j <= fdmax; j++) {
-								if (FD_ISSET(j, &master_fds)) {
-									// except the listener and ourselves
-									if (j != sock && j != snew) {
-										//Send 0x01
-										if(send_message(j, &tempChar2, 1) == 0) continue;
-										//Send username length
-										if(send_message(j, &tempChar, 1) == 0) continue;
-										//Send username
-										if(send_message(j, nameBuffer, tempChar) == 0) continue;
-										//Might want to test if send_message is successful or not here
+							//Special Case: What if username is already logged in?
+							if(findName(nodeHead, nameBuffer)==1){
+								printf("Server: %s is already in server.\n",nameBuffer);
+								close(snew);
+							}else{
+								//End handshake
+								//Now add it to the server's data structures
+								addNameServer(nodeHead,nameBuffer,tempChar,snew,currentTime);
+								//~ //printNames(nodeHead); //just a test ;)
+								FD_SET(snew, &master_fds); // add to master set
+								if (snew > fdmax) {    // keep track of the max
+									fdmax = snew;
+								}
+								//Send user connected message
+								tempChar2 = 1;
+								for(j = 0; j <= fdmax; j++) {
+									if (FD_ISSET(j, &master_fds)) {
+										// except the listener and ourselves
+										if (j != sock && j != snew) {
+											//Send 0x01
+											if(send_message(j, &tempChar2, 1) == 0) continue;
+											//Send username length
+											if(send_message(j, &tempChar, 1) == 0) continue;
+											//Send username
+											if(send_message(j, nameBuffer, tempChar) == 0) continue;
+											//Might want to test if send_message is successful or not here
+										}
 									}
 								}
 							}
